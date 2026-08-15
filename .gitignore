@@ -1,1 +1,4 @@
 todo/
+node_modules/
+dist/
+*.deb

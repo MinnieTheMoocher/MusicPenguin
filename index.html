@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MusicPenguin</title>
+  <script>
+    (function() {
+      var m = location.search.match(/[?&]theme=(\w+)/);
+      if (m && m[1] === 'light') document.documentElement.dataset.theme = 'light';
+      var l = location.search.match(/[?&]lang=([\w-]+)/);
+      if (l && l[1]) document.documentElement.lang = l[1];
+    })();
+  </script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <div id="now-playing">
+      <div id="now-playing-info">No track selected</div>
+      <div id="now-playing-controls">
+        <button id="prev-btn" data-i18n-title="Previous Track" title="Previous Track">⏮</button>
+        <button id="play-btn" data-i18n-title="Play" title="Play">▶️</button>
+        <button id="next-btn" data-i18n-title="Next Track" title="Next Track">⏭</button>
+        <span id="current-time" data-i18n-title="Elapsed time of current track" title="Elapsed time of current track">0:00</span>
+        <div id="progress-track" data-i18n-title="Progress" title="Progress">
+          <div id="progress-fill"></div>
+          <div id="progress-hover-time"></div>
+        </div>
+        <span id="duration" data-i18n-title="Track length" title="Track length">0:00</span>
+        <span id="now-playing-rating" data-i18n-title="Rating" title="Rating"></span>
+        <div id="volume-section">
+          <button id="volume-icon" data-i18n-title="Mute" title="Mute">🔊</button>
+          <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="1" data-i18n-title="Volume" title="Volume" />
+        </div>
+      </div>
+    </div>
+
+    <div id="main-area">
+      <aside id="groups-panel">
+        <div id="groups-container">
+          <h2 data-i18n="Groups">Groups</h2>
+          <ul id="groups-list"></ul>
+        </div>
+        <img id="large-application-logo" src="res/musicpenguin.png" alt="MusicPenguin" data-i18n-title="About MusicPenguin" title="About MusicPenguin" />
+        <div id="groups-buttons">
+          <button id="folders-btn" data-i18n-title="Choose Folders with Audio Files" title="Choose Folders with Audio Files">📁</button>
+          <button id="scan-btn" data-i18n-title="Re-Scan Files" title="Re-Scan Files">🏷️</button>
+          <button id="problematic-btn" data-i18n-title="Show Problematic Files" title="Show Problematic Files">⚠️</button>
+          <button id="settings-btn" data-i18n-title="Settings" title="Settings">⚙</button>
+        </div>
+      </aside>
+
+      <div id="divider-v" class="divider-v"></div>
+
+      <main id="content">
+        <section id="list-panel">
+          <h2 data-i18n="Files">Files</h2>
+          <table id="list-table">
+            <thead>
+              <tr>
+                <th class="col-_playing"><span class="col-label"></span></th>
+                <th class="col-playcount"><span class="col-label">Play Count</span></th>
+                <th class="col-trackNo"><span class="col-label">#</span></th>
+                <th class="col-title"><span class="col-label">Title</span></th>
+                <th class="col-artist"><span class="col-label">Artist</span></th>
+                <th class="col-album"><span class="col-label">Album</span></th>
+                <th class="col-albumArtist"><span class="col-label">Album Artist</span></th>
+                <th class="col-composer"><span class="col-label">Composer</span></th>
+                <th class="col-conductor"><span class="col-label">Conductor</span></th>
+                <th class="col-year"><span class="col-label">Year</span></th>
+                <th class="col-genre"><span class="col-label">Genre</span></th>
+                <th class="col-bpm"><span class="col-label">BPM</span></th>
+                <th class="col-rating"><span class="col-label">Rating</span></th>
+                <th class="col-duration"><span class="col-label">Duration</span></th>
+                <th class="col-ext"><span class="col-label">Ext</span></th>
+                <th class="col-filename"><span class="col-label">Path</span></th>
+              </tr>
+            </thead>
+            <tbody id="list"></tbody>
+          </table>
+        </section>
+
+        <div id="divider-h" class="divider-h"></div>
+
+        <section id="detail-panel">
+          <h2 data-i18n="Details">Details</h2>
+          <div id="detail-layout">
+            <div id="cover-col">
+              <div id="cover-area">
+                <img id="cover-image" data-i18n-alt="Cover" alt="Cover" />
+                <span id="cover-placeholder">♫</span>
+              </div>
+              <div id="search-btn-container"></div>
+            </div>
+            <form id="detail-form">
+              <div class="detail-row">
+                <div class="detail-row-left-half"><label><span data-i18n="Title">Title</span> <input type="text" id="field-title" /></label></div>
+                <div class="detail-row-right-half"><label><span data-i18n="Artist">Artist</span> <input type="text" id="field-artist" /></label></div>
+              </div>
+              <div class="detail-row">
+                <div class="detail-row-left-half"><label><span data-i18n="Album">Album</span> <input type="text" id="field-album" /></label></div>
+                <div class="detail-row-right-half"><label><span data-i18n="Album Artist">Album Artist</span> <input type="text" id="field-album-artist" /></label></div>
+              </div>
+              <div class="detail-row">
+                <div class="detail-row-left-half"><label><span data-i18n="Composer">Composer</span> <input type="text" id="field-composer" /></label></div>
+                <div class="detail-row-right-half"><label><span data-i18n="Conductor">Conductor</span> <input type="text" id="field-conductor" /></label></div>
+              </div>
+              <div class="detail-row">
+                <div class="detail-row-left-half">
+                   <label class="field-small"><span data-i18n="Disc No">Disc No</span> <input type="text" id="field-disc-no" /></label>
+                   <label class="field-small"><span data-i18n="Track No">Track No</span> <input type="text" id="field-track-no" /></label>
+                   <label class="field-small"><span data-i18n="Year">Year</span> <input type="text" id="field-year" /></label>
+                   <label class="field-small"><span data-i18n="BPM">BPM</span> <input type="text" id="field-bpm" /></label>
+                    <label><span data-i18n="Rating">Rating</span> <span id="field-rating" class="field-small"></span></label>
+                </div>
+                <div class="detail-row-right-half">
+                   <label><span data-i18n="Genre">Genre</span> <input type="text" id="field-genre" /></label>
+                </div>
+              </div>
+              <label><span data-i18n="Comment">Comment</span> <textarea id="field-comment" rows="3"></textarea></label>
+              <label><span data-i18n="Path">Path</span> <input type="text" id="field-path" /></label>
+            </form>
+          </div>
+        </section>
+      </main>
+
+      <div id="divider-v2" class="divider-v playlist-divider"></div>
+
+      <div id="right-panels">
+        <div id="search-panel">
+          <h2 data-i18n="Search">Search</h2>
+          <div id="search-bar">
+            <input type="text" id="search-input" data-i18n-placeholder="Search library..." placeholder="Search library..." />
+            <button id="regex-btn" class="btn-icon" data-i18n-title="RegEx Mode" title="RegEx Mode">.*</button>
+            <button id="search-btn" class="btn-icon" data-i18n-title="Search" title="Search">🔍</button>
+          </div>
+          <div id="search-tags">
+            <label class="search-tag"><input type="checkbox" id="search-tag-title" checked /> <span data-i18n="Title">Title</span></label>
+            <label class="search-tag"><input type="checkbox" id="search-tag-artist" checked /> <span data-i18n="Artist">Artist</span></label>
+            <label class="search-tag"><input type="checkbox" id="search-tag-album" checked /> <span data-i18n="Album">Album</span></label>
+            <label class="search-tag"><input type="checkbox" id="search-tag-album-artist" checked /> <span data-i18n="Album Artist">Album Artist</span></label>
+            <label class="search-tag"><input type="checkbox" id="search-tag-composer" checked /> <span data-i18n="Composer">Composer</span></label>
+            <label class="search-tag"><input type="checkbox" id="search-tag-conductor" checked /> <span data-i18n="Conductor">Conductor</span></label>
+            <label class="search-tag"><input type="checkbox" id="search-tag-year" checked /> <span data-i18n="Year">Year</span></label>
+            <label class="search-tag"><input type="checkbox" id="search-tag-genre" checked /> <span data-i18n="Genre">Genre</span></label>
+            <label class="search-tag"><input type="checkbox" id="search-tag-comment" checked /> <span data-i18n="Comment">Comment</span></label>
+            <label class="search-tag"><input type="checkbox" id="search-tag-path" /> <span data-i18n="Path">Path</span></label>
+          </div>
+        </div>
+        <hr class="panel-divider" />
+        <aside id="playlist-panel">
+          <h2 data-i18n="Playlist">Playlist</h2>
+          <div id="playlist-toolbar">
+            <button id="playlist-play-btn" class="btn-icon" data-i18n-title="Play Playlist" title="Play Playlist">▶️</button>
+            <button id="shuffle-btn" class="btn-icon" data-i18n-title="Shuffle" title="Shuffle">🔀</button>
+            <button id="repeat-btn" class="btn-icon" data-i18n-title="Repeat" title="Repeat">🔁</button>
+            <button id="randomize-btn" class="btn-icon" data-i18n-title="Randomize Playlist" title="Randomize Playlist">🎲</button>
+            <button id="clear-playlist-btn" class="btn-icon" data-i18n-title="Clear Playlist" title="Clear Playlist">🧹</button>
+            <button id="save-playlist-btn" class="btn-icon" data-i18n-title="Save Playlist" title="Save Playlist">💾</button>
+            <button id="load-playlist-btn" class="btn-icon" data-i18n-title="Load Playlist" title="Load Playlist">📂</button>
+          </div>
+          <div id="playlist-container">
+            <ul id="playlist-list"></ul>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <div id="handle"><div class="handle-knob"></div></div>
+    <div id="handle-right"><div class="handle-knob"></div></div>
+    <div id="status-bar">
+      <button id="status-cancel-btn" class="hidden" data-i18n-title="Cancel Tag Scanning" data-i18n="Cancel" title="Cancel Tag Scanning">Cancel</button>
+      <span id="status-text"></span>
+    </div>
+  </div>
+
+  <div id="settings-overlay" class="overlay hidden">
+    <div class="dialog">
+      <div class="dialog-header">
+        <h2 style="display:block" data-i18n="Settings">Settings</h2>
+        <button id="dialog-close" class="dialog-close" data-i18n-title="Close" title="Close">×</button>
+      </div>
+      <div class="dialog-body">
+        <label class="toggle-row">
+          <span data-i18n="Language">Language</span>
+          <select id="language-select"></select>
+        </label>
+
+        <label class="toggle-row">
+          <span data-i18n="Dark Mode">Dark Mode</span>
+          <span class="toggle-track">
+            <input type="checkbox" id="dark-toggle" />
+            <span class="toggle-thumb"></span>
+          </span>
+        </label>
+
+        <div style="display:flex;justify-content:flex-end;flex-shrink:0;margin-top:auto;padding-top:1rem">
+          <button id="dialog-ok" class="btn btn-primary" data-i18n-title="OK" data-i18n="OK" title="OK">OK</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="folders-overlay" class="overlay hidden">
+    <div class="dialog">
+      <div class="dialog-header">
+        <h2 style="display:block" data-i18n="Choose Folders with Audio Files">Choose Folders with Audio Files</h2>
+        <button id="folders-dialog-close" class="dialog-close" data-i18n-title="Close" title="Close">×</button>
+      </div>
+      <div class="dialog-body">
+        <div class="dialog-section" style="flex:1;display:flex;flex-direction:column">
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button id="folder-add-btn" class="btn btn-secondary" data-i18n-title="Add Music Folder" data-i18n="+ Add Folder" title="Add Music Folder">+ Add Folder</button>
+          </div>
+          <ul id="folder-list"></ul>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;flex-shrink:0;margin-top:1rem">
+          <button id="folders-dialog-ok" class="btn btn-primary" data-i18n-title="OK" data-i18n="OK" title="OK">OK</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="about-overlay" class="overlay hidden">
+    <div class="dialog about-dialog">
+      <div class="dialog-header">
+        <h2 style="display:block" data-i18n="About MusicPenguin">About MusicPenguin</h2>
+        <button id="about-dialog-close" class="dialog-close" data-i18n-title="Close" title="Close">×</button>
+      </div>
+      <div class="dialog-body about-body">
+        <img id="about-logo" src="res/musicpenguin.png" alt="MusicPenguin" />
+        <div id="about-app-name">MusicPenguin</div>
+        <div id="about-version">Version 0.0.1</div>
+        <div id="about-by">by MinnieTheMoocher</div>
+        <a id="about-homepage" href="https://github.com/MinnieTheMoocher/MusicPenguin">https://github.com/MinnieTheMoocher/MusicPenguin</a>
+        <div style="display:flex;justify-content:flex-end;flex-shrink:0;margin-top:auto">
+          <button id="about-ok" class="btn btn-primary" data-i18n-title="OK" data-i18n="OK" title="OK">OK</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="dist/bundle.js"></script>
+</body>
+</html>

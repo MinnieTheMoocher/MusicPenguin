@@ -1,0 +1,54 @@
+{
+  "files.exclude": {
+    "**/.git": true,
+    // "node_modules/": true,
+    // "dist/": true
+  },
+
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+
+  "task.autoDetect": "off",
+
+  "cSpell.enabled": true,
+  "cSpell.enabledFileTypes": {
+    "*": true,
+  },
+  "cSpell.words": [
+    "allfiles",
+    "APIC",
+    "beforeunload",
+    "browsable",
+    "Crashpad",
+    "crossfade",
+    "Discogs",
+    "DLNA",
+    "dpkg",
+    "esbuild",
+    "EXTM3U",
+    "ffprobe",
+    "flac",
+    "gedit",
+    "kdedefaults",
+    "kdeglobals",
+    "libasound",
+    "libnss",
+    "libxss",
+    "Matroska",
+    "Mayall",
+    "mousemove",
+    "mouseup",
+    "MusicBrainz",
+    "musicpenguin",
+    "overscan",
+    "playcount",
+    "recalc",
+    "rescan",
+    "setuid",
+    "sqljs",
+    "subdirs",
+    "theatermode",
+    "unscanned",
+    "Vorbis"
+  ]
+}
