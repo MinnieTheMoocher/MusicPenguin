@@ -44,6 +44,10 @@ You can easily browse:
 All searches are case-independent tag or path substring searches,
 and you can choose which properties of the media items to search.
 
+## Screenshot
+
+<img src="res/MusicPenguin_Screenshot.png" width=800 alt="MusicPenguin Screenshot">
+
 ## License
 
 MIT, see [LICENSE](./LICENSE)
