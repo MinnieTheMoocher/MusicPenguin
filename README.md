@@ -1,6 +1,6 @@
 # MusicPenguin
 
-<img src="res/musicpenguin256.png" width=150 alt="MusicPenguin icon">
+<img src="doc/musicpenguin256.png" width=150 alt="MusicPenguin icon">
 
 * BlueSky: <https://bsky.app/profile/musicpenguin.bsky.social>
 * GitHub:  <https://github.com/MinnieTheMoocher/MusicPenguin>
@@ -45,23 +45,23 @@ English, French, Spanish, German
 
 ## Screenshot
 
-<img src="res/MusicPenguin_Screenshot.png" width=800 alt="MusicPenguin Screenshot">
+<img src="doc/MusicPenguin_Screenshot.png" width=800 alt="MusicPenguin Screenshot">
 
 ## License
 
 MIT, see [LICENSE](./LICENSE)
 
-## Install
+## Installation
 
-Download the `*.deb` installation file of the release you want, then just run
+The package is self-contained, no node.js, npm, or separate Electron installation is necessary. Just
+[download the latest `*.deb` installation file](https://github.com/MinnieTheMoocher/MusicPenguin/releases)
+and then run
 
 ```bash
-sudo dpkg -i musicpenguin_0.0.2_amd64.deb
+sudo dpkg -i musicpenguin_0.0.3_amd64.deb
 ```
 
-No node.js, npm, or separate Electron installation is necessary.
-
-## Uninstall
+## Un-Installation
 
 ```bash
 sudo dpkg -r musicpenguin

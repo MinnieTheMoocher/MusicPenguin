@@ -1,5 +1,13 @@
 # MusicPenguin Changelog
 
+## musicpenguin 0.0.3
+
+* feature: provided rpm installation package
+* change:  restructured source tree
+* change:  updated Electron to 43.4.1
+* bugfix:  removed unused binaries from installation packages
+* bugfix:  added missing dependency to Google Noto Color Emoji font, use Emoji glyphs properly
+
 ## musicpenguin 0.0.2
 
 * feature: media servers on local network (DLNA/UPnP) can be used in addition to local files or files from mounted file systems like from NAS

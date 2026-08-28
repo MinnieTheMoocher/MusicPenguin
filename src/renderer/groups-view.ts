@@ -1,5 +1,5 @@
 import { TreeNode } from "./types.js";
-import { t } from "./i18n/index.js";
+import { t } from "../common/i18n/index.js";
 
 const FIXED_GROUP_LABELS = new Set([
   "grp-allfiles",

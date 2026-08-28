@@ -1,4 +1,4 @@
-import { t } from "./i18n/index.js";
+import { t } from "../common/i18n/index.js";
 
 export interface ScannedFileInfo {
   name: string;

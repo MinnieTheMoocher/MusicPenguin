@@ -1,4 +1,4 @@
-import { t } from "./i18n/index.js";
+import { t } from "../common/i18n/index.js";
 
 const SEARCH_TAG_IDS = ["search-tag-title", "search-tag-artist", "search-tag-album", "search-tag-album-artist", "search-tag-composer", "search-tag-conductor", "search-tag-year", "search-tag-genre", "search-tag-comment", "search-tag-path"];
 

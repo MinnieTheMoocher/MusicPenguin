@@ -1,0 +1,33 @@
+{
+  // MAIN PROCESS CONFIG
+  //
+  // Type-checks only the Electron main process: `src/main/` plus the shared
+  // global type `src/common/electron-types.d.ts` (needed because main imports
+  // `src/common/i18n`, which references `window.electronAPI`).
+  //
+  // This is one of two real process configs driven by `npm run typecheck`.
+  // Give this and `tsconfig.renderer.json` different `target` values when you
+  // want to downgrade the two processes independently (e.g. main -> ES2021 for
+  // an older Node, renderer -> ES2023 for a newer Chromium).
+  //
+  // Note: tsc only type-checks here (`--noEmit` at the CLI). Actual JS emit is
+  // done by esbuild via `build:main` in package.json, so the `target` below is
+  // the feature floor that tsc validates against, not the emitted output.
+  //
+  // The root `tsconfig.json` is editor-only and NOT used by this build.
+  "compilerOptions": {
+    // Shared strictness / module settings (mirror of the root editor config).
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "sourceMap": true,
+    "declaration": false,
+    "target": "ES2022",
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": ["src/main", "src/common/electron-types.d.ts"]
+}

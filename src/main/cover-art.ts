@@ -9,7 +9,7 @@ import {
   COVER_IMAGE_EXTENSIONS,
   FRONT_COVER_FILENAMES,
   REAR_COVER_FILENAMES,
-} from "../config";
+} from "../common/config";
 
 const EXT_PATTERN = COVER_IMAGE_EXTENSIONS.join("|");
 const FRONT_FOLDER_IMAGE_RE = new RegExp(`^(?:${FRONT_COVER_FILENAMES.join("|")})\\.(?:${EXT_PATTERN})$`, "i");

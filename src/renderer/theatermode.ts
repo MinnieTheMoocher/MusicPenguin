@@ -3,8 +3,9 @@
 import { audio, formatTime } from "./audio.js";
 import { setupRatingHover } from "./list-view.js";
 import { onPlaybackFailure, setSilentSkipHandler } from "./playback-error.js";
-import { MEDIA_FILE_EXTENSIONS, MIN_EXTRA_IMAGE_SIZE, THEATER_FADE_TOTAL_MS } from "./config.js";
-import { t } from "./i18n/index.js";
+import { MEDIA_FILE_EXTENSIONS, MIN_EXTRA_IMAGE_SIZE, THEATER_FADE_TOTAL_MS } from "../common/config.js";
+import { ICON_PREV, ICON_NEXT, ICON_PLAY } from "./icons.js";
+import { t } from "../common/i18n/index.js";
 
 const overlay = document.createElement("div");
 overlay.id = "theater-mode";
@@ -23,17 +24,17 @@ overlay.innerHTML = `
       <div id="tm-year"></div>
       <div id="tm-bottom-group">
         <div id="tm-controls">
-          <button id="tm-prev-btn" data-i18n-title="Previous Track" title="Previous Track">⏮</button>
-          <button id="tm-play-btn" data-i18n-title="Play" title="Play">▶️</button>
-          <button id="tm-next-btn" data-i18n-title="Next Track" title="Next Track">⏭</button>
-          <span id="tm-current-time" data-i18n-title="Elapsed time of current track" title="Elapsed time of current track">0:00</span>
+          <button id="tm-prev-btn" data-i18n-title="Previous Track" title="Previous Track">${ICON_PREV}</button>
+          <button id="tm-play-btn" data-i18n-title="Play" title="Play">${ICON_PLAY}</button>
+          <button id="tm-next-btn" data-i18n-title="Next Track" title="Next Track">${ICON_NEXT}</button>
+          <span id="tm-current-time" data-i18n-title="Elapsed time of current track" title="Elapsed time of current track">00:00</span>
           <div id="tm-progress-wrap">
             <div id="tm-progress-track" data-i18n-title="Progress" title="Progress">
               <div id="tm-progress-fill"></div>
             </div>
             <div id="tm-rating"><span id="tm-rating-inner" data-i18n-title="Rating" title="Rating"></span></div>
           </div>
-          <span id="tm-duration" data-i18n-title="Track length" title="Track length">0:00</span>
+          <span id="tm-duration" data-i18n-title="Track length" title="Track length">00:00</span>
         </div>
       </div>
     </div>
@@ -396,7 +397,7 @@ audio.addEventListener("ended", () => {
   tmPlayBtn.innerHTML = "&#x25B6;&#xFE0F;";
   tmPlayBtn.title = t("Play");
   tmProgressFill.style.width = "0%";
-  tmCurrentTimeEl.textContent = "0:00";
+  tmCurrentTimeEl.textContent = "00:00";
   if (overlay.style.display === "flex" && !transitioning && tmFadeOutPossible && onCanNextTrack?.()) {
     /* Fade-out was eligible but got missed between timeupdate ticks:
        keep the screen black through the track gap so the next track

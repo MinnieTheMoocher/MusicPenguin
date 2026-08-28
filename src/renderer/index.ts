@@ -15,10 +15,11 @@ import { initFoldersDialog } from "./folders-dialog.js";
 import { runFullScan, fileCountLabel, subscribeDlnaProgress } from "./scanner.js";
 import { setTrackNavCallbacks, setShownTrackHandlers, refreshTheaterModeMetadata } from "./theatermode.js";
 import { fetchThumbnail } from "./thumbnail-cache.js";
-import { t, initI18n } from "./i18n/index.js";
+import { t, initI18n } from "../common/i18n/index.js";
 import { initCssStrings } from "./css-strings.js";
 import { debugLog } from "./debug-log.js";
 import { passesMinAutoplayRating } from "./min-autoplay-rating.js";
+import { initEmojiButtons } from "./icons.js";
 
 const HEADER_COLUMNS = ["", "playcount", "track_no", "title", "artist", "album", "album_artist", "composer", "conductor", "year", "genre", "bpm", "rating", "duration", "ext", "path"];
 
@@ -803,6 +804,7 @@ function flushDlnaRows(): void {
 async function init() {
   await initI18n();
   initCssStrings();
+  initEmojiButtons();
   window.electronAPI.onTagUpdate(applyTagUpdate);
   const statusText = document.getElementById("status-text")!;
   const cancelBtn = document.getElementById("status-cancel-btn")! as HTMLButtonElement;

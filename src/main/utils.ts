@@ -5,7 +5,7 @@ import * as net from "net";
 import { execSync, execFileSync } from "child_process";
 
 import type { ScannedFileInfo } from "./types";
-import { MEDIA_FILE_EXTENSIONS } from "../config";
+import { MEDIA_FILE_EXTENSIONS } from "../common/config";
 
 export function ensureDir(dirPath: string) {
   if (!fs.existsSync(dirPath)) {

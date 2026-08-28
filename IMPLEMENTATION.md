@@ -6,37 +6,50 @@
 npm ci                  # install dependencies
 npm run build           # typecheck, then builds both bundles (main + renderer)
 npm run typecheck       # tsc --noEmit — strict type-check only (no output emitted)
-npm run build:main      # esbuild bundles src/main-process/ → dist/main-bundle.js (CJS)
+npm run build:main      # esbuild bundles src/main/ → dist/main-bundle.js (CJS)
 npm run build:renderer  # esbuild bundles src/ → dist/bundle.js (ESM)
 npm run start           # build + launch Electron window
 npm run electron        # launch without re-building
 npm run watch           # typecheck once, then rebuild renderer bundle on file changes
-./pack-deb.bash         # create .deb distribution package
 ```
 
 ## Files
 
-| File                   | Purpose
-|------------------------|--------
-| main.js                | Electron entry (CommonJS shim)
-| dist/main-bundle.js    | Bundled main process (src/main-process)
-| preload.js             | contextBridge → window.electronAPI
-| index.html             | HTML layout with all panels
-| style.css              | Full stylesheet, dark/light themes
-| dist/bundle.js         | Bundled renderer (src/index.ts, ESM)
-| src/main-process/      | Main-process TypeScript source files
-| src/i18n/              | Localization module (`ITranslate` contract, `en-us`/`de-de`/`fr-fr`/`es-es` dictionaries, `t()` lookup)
-| src/                   | Renderer TypeScript source files
+| File                        | Purpose
+|-----------------------------|--------
+| main.js                     | Electron entry (CommonJS shim)
+| dist/main-bundle.js         | Bundled main process (src/main)
+| src/preload/preload.js      | contextBridge → window.electronAPI (plain CommonJS, never transpiled)
+| src/renderer/index.html     | HTML layout with all panels
+| src/renderer/style.css      | Full stylesheet, dark/light themes
+| src/renderer/musicpenguin256.png | Runtime logo (window icon + about dialogs)
+| dist/bundle.js              | Bundled renderer (src/renderer/index.ts, ESM)
+| src/main/                   | Main-process TypeScript source files
+| src/common/                 | Shared code used by both processes: `config.ts`, `i18n/`, `electron-types.d.ts`
+| src/common/i18n/            | Localization module (`ITranslate` contract, `en-us`/`de-de`/`fr-fr`/`es-es` dictionaries, `t()` lookup)
+| src/renderer/               | Renderer TypeScript source files
+| CHANGELOG.md                   | Hand-maintained changelog (project documentation only)
+| doc/                        | Screenshots + logo for README (project documentation only)
 
-**Key point**: `main.js` and `preload.js` are plain CommonJS, never transpiled. `src/` and
-`src/main-process/` files are TypeScript bundled by esbuild (types stripped). TypeScript syntax
-(`as`, generics, etc.) must never appear in main.js or preload.js.
+**Key point**: `main.js` and `src/preload/preload.js` are plain CommonJS, never transpiled. `src/` and
+`src/main/` + `src/renderer/` files are TypeScript bundled by esbuild (types stripped). TypeScript
+syntax (`as`, generics, etc.) must never appear in main.js or src/preload/preload.js.
+
+**Versions are not documented here**: the single source of truth for dependency versions (Electron,
+npm packages, TypeScript toolchain) is `package.json` / the lockfile.
+
+**TypeScript config is split per process** in two top-level files:
+`tsconfig.main.json` (includes `src/main` + shared `src/common/electron-types.d.ts`) and
+`tsconfig.renderer.json` (includes `src` except `src/main`, i.e. `src/renderer` + `src/common`).
+Each is a self-contained project with its own `target`, so the main process and renderer can be
+downgraded independently. `npm run typecheck` runs `tsc --noEmit` for each. All emitted JS is
+produced by esbuild, not `tsc`.
 
 **No inline `require()` in TypeScript**: all module loading in `src/` (renderer and main process)
-must go through top-level `import` statements — never inline `require()` calls. Only `main.js`,
-`preload.js`, and `pack-deb.bash` (plain CommonJS / shell) may use `require`. Since `sql.js` ships
+must go through top-level `import` statements — never inline `require()` calls. Only `main.js`
+and `src/preload/preload.js` (plain CommonJS) may use `require`. Since `sql.js` ships
 no type declarations, its type is provided by the ambient `declare module "sql.js"` in
-`src/main-process/sqljs.d.ts`. Type casts must be typed assertions to concrete types (e.g.
+`src/main/sqljs.d.ts`. Type casts must be typed assertions to concrete types (e.g.
 `as Buffer`); `as any` is forbidden because it bypasses the strict type check.
 
 ## App Files Used at Runtime
@@ -351,7 +364,7 @@ write).
 
 ## Tag Reader (Background Queue)
 
-The tag reader lives in `src/main-process/tag-reader.ts`. It maintains a `queue` array (max
+The tag reader lives in `src/main/tag-reader.ts`. It maintains a `queue` array (max
 `TAG_BATCH_SIZE` = 20 paths) and parses files concurrently using `NUM_TAG_READER_THREADS` (= 4)
 workers per batch. The loop:
 
@@ -409,20 +422,20 @@ from previously removed folders/servers.
 
 ## Source Files
 
-### `src/main-process/index.ts`
+### `src/main/index.ts`
 
 Main process entry point (bundled to `dist/main-bundle.js`). Creates BrowserWindow with
 context-isolated preload, registers all `ipcMain.handle` handlers (settings, db, dialog,
 cover art, shell), and manages window state persistence (position/size/maximized per display).
 
-### `src/main-process/database.ts`
+### `src/main/database.ts`
 
 SQLite operations: `initDb()` creates/migrates the schema, `loadFiles()`, `storeFiles()`,
 `lookupPaths()`, `searchFiles()` (LIKE or regex), `getProblematicFiles()`, `clearAllFiles()`,
 `setRating()`, `moveFilePath()`, `deleteFiles()`, `incrementPlaycount()`.
 `saveDb()` writes the WASM DB to disk.
 
-### `src/main-process/tag-reader.ts`
+### `src/main/tag-reader.ts`
 
 Background tag queue (see Tag Reader section above). Functions: `initTagReader()`,
 `startTagRead()`, `stopTagReader()`, `prioritizeFiles()`, `runIncrementalScan()`,
@@ -433,7 +446,7 @@ they are remote stream URLs with no local file to stat. The `removed` count in t
 is computed as `countBefore - countAfter` (total rows before and after the sweep), so it
 accurately reflects all deletions — both allowedPaths pruning and missing-file cleanup.
 
-### `src/main-process/dlna.ts`
+### `src/main/dlna.ts`
 
 DLNA / UPnP AV ContentDirectory scanner. `scanDlnaLibrary(db, servers, onProgress)`
 takes a LIST of servers (`{ name, control-url, description-url }`, from the folders-dialog selection) and
@@ -492,7 +505,7 @@ a dead server can't stall the pass), learned values are written back through
 `library:durations-fixed`. Tracks that survive with NULL fall through to the
 layer-3 `<audio>` element gap filler at play time (see now-playing.ts).
 
-### `src/main-process/ssdp.ts`
+### `src/main/ssdp.ts`
 
 SSDP discovery of UPnP/DLNA media servers on the local network.
 `discoverDlnaServers()` sends M-SEARCH requests to UDP multicast 239.255.255.250:1900
@@ -511,7 +524,7 @@ and for the deepest device that offers a ContentDirectory service resolves:
 Media renderers and other devices without a ContentDirectory are filtered out.
 Results are deduped by control URL and sorted by name. No third-party SSDP library.
 
-### `src/main-process/cover-art.ts`
+### `src/main/cover-art.ts`
 
 `getCoverArtGroups(filePath)` — the track's cover art as three disjunct
 groups in one call (single tag parse): `front` = embedded picture #1, else
@@ -521,7 +534,7 @@ files (`REAR_COVER_FILENAMES`, config order); `extraImages` = all remaining
 images in the folder, alphabetically. Front-named files and the track-named
 image never leak into the other groups. Filename lists live in
 `FRONT_COVER_FILENAMES` / `REAR_COVER_FILENAMES` / `COVER_IMAGE_EXTENSIONS`
-in `src/config.ts`. `getCoverArt(filePath, maxSize?)` (front group only)
+in `src/common/config.ts`. `getCoverArt(filePath, maxSize?)` (front group only)
 accepts an optional `maxSize` parameter: when provided, `resizeToThumbnail()`
 uses Electron's `nativeImage` to resize the image before returning a data
 URL. `getCoverArtGroups()` always returns full resolution (used by theater
@@ -531,27 +544,27 @@ against the stream URL, max 8 in parallel) and picks the largest image by
 pixel dimensions — so theater mode always gets the full-size variant. The IPC
 handlers route http(s) paths there instead of the local-file logic.
 
-### `src/main-process/kde-theme.ts`
+### `src/main/kde-theme.ts`
 
 `detectInitialTheme(settingsPath)` — precedence: saved theme → KDE color scheme (parses
 `kdeglobals` for `ColorScheme` name or `BackgroundNormal`/`ForegroundNormal` luminance) → dark.
 
-### `src/main-process/types.ts`
+### `src/main/types.ts`
 
 Shared TypeScript types: `SqlJsDatabase`, `SqlJsStatement`, `SqlJsStatic`, `ScannedFileInfo`,
 `TagUpdate`, `SearchOptions`, `SendToRenderer` callback type.
 
-### `src/main-process/sqljs.d.ts`
+### `src/main/sqljs.d.ts`
 
 Ambient declaration for `sql.js` (which ships no types): declares its default export as
 `() => Promise<SqlJsStatic>`, enabling a plain top-level `import initSqlJs from "sql.js"`.
 
-### `src/main-process/paths.ts`
+### `src/main/paths.ts`
 
 `SETTINGS_DIR`, `SETTINGS_PATH`, `DEFAULT_DB_PATH` — resolves `~/.config/musicpenguin/...`.
 `getDbPath()` — reads `db-path` from musicpenguin-settings.json, falls back to default.
 
-### `src/main-process/mpris.ts`
+### `src/main/mpris.ts`
 
 MPRIS (Media Player Remote Interfacing Specification) server for Linux desktop integration.
 Registers MusicPenguin on the D-Bus session bus as `org.mpris.MediaPlayer2.MusicPenguin`
@@ -582,13 +595,13 @@ The renderer sends state updates via the `mpris:updateState` IPC channel, and MP
 calls (or globalShortcutPressed signals) are forwarded to the renderer as `media-key` IPC
 messages.
 
-### `src/main-process/utils.ts`
+### `src/main/utils.ts`
 
 `walkDirectory()` — recursive file scan matching `MEDIA_FILE_EXTENSIONS`. `withTimeout()` —
 Promise race with timeout. `ensureDir()`. `commandExists()` — checks `which`. `jsonStringify()`
 — JSON.stringify with 2-space indent and Unicode unescaping.
 
-### `src/config.ts`
+### `src/common/config.ts`
 
 Central constants: `TAG_BATCH_SIZE` (20), `NUM_TAG_READER_THREADS` (4), `MEDIA_FILE_EXTENSIONS`
 (all scannable audio/video extensions), `PLAYABLE_FILE_EXTENSIONS` (built-in `<audio>` playback,
@@ -598,13 +611,13 @@ including `.mp2` which Chromium can decode for MPEG-1 Layer II but not MPEG Laye
 and `THEATER_FADE_TOTAL_MS` (6000, combined theater mode fade-out + fade-in time; half per
 direction).
 
-### `src/debug-log.ts`
+### `src/renderer/debug-log.ts`
 
 Debug logging for the renderer process. `initDebugLog()` reads the `debug-log` setting.
 `debugLog(...args)` writes timestamped lines via IPC to `~/.config/musicpenguin.log` when
 enabled, or no-ops when disabled. Used for media key event tracing.
 
-### `src/index.ts`
+### `src/renderer/index.ts`
 
 Renderer entry point (bundled to `dist/bundle.js`). Initializes all panels: groups, list,
 detail, now-playing, split-panes, playlist, search, settings. Handles the Scan button (delegates
@@ -657,13 +670,13 @@ additionally creates a new group or the user DEL-removes one; restored at startu
 (`loadGroupItems()` runs before the first `refreshGroupsUI()`) by rebuilding the four group
 arrays from the `kind`/`value` pairs and re-deriving the node ids and folder basename labels.
 
-### `src/types.ts`
+### `src/renderer/types.ts`
 
 * `TreeNode` — `id`, `label`, `children?`, `thumbnail?`
 * `ListItem` — flattened display row (`id`, `path`, `filename`, `title`, `artist`, `album`, `trackNo`, `albumArtist`, `genre`, `year`, `ext`, `discNo`, `rawTrackNo`, `trackPath`, `composer`, `conductor`, `comment`, `rating`, `bpm`, `duration`, `playcount`)
 * `PlaylistEntry` — `path`, `title`, `artist`, `duration`, `album`, `trackNo`, `albumArtist`, `genre`, `year`, `composer`, `conductor`, `comment`, `rating`, `bpm`, `playcount`, `filename`, `ext`, `trackPath`, `id`, `_playing?` (thumbnail cache is in `src/thumbnail-cache.ts`)
 
-### `src/thumbnail-cache.ts`
+### `src/renderer/thumbnail-cache.ts`
 
 Application-wide singleton (`Map<string, string>`) caching 32×32 px cover art data URLs
 keyed by file path. `fetchThumbnail(filePath)` checks the cache, then calls `getCoverArt`
@@ -671,12 +684,12 @@ with `maxSize: 32` on miss and stores the result. `getThumbnail(filePath)` provi
 synchronous cache lookup. Shared by the playlist and groups panel — the same file
 triggers only one IPC round-trip.
 
-### `src/electron-types.d.ts`
+### `src/common/electron-types.d.ts`
 
 Declares `Track`, `ScannedFileInfo`, `TagUpdate`, `ElectronAPI` interface (all IPC methods
 exposed via preload), and `Window` augmentation.
 
-### `src/groups-view.ts`
+### `src/renderer/groups-view.ts`
 
 Renders a flat `<ul>` from `TreeNode[]`. Click selects a node; double-click opens it.
 Supports cover art thumbnails (via the shared `ThumbnailCache`, 32×32 px), drag-to-playlist,
@@ -687,7 +700,7 @@ left panel (fixed groups and headings are not removable; the change is persisted
 `group-items` setting). After removal, selection moves
 to the next item in the same section, or the previous one, or falls back to "All Tracks".
 
-### `src/list-view.ts`
+### `src/renderer/list-view.ts`
 
 CSS Grid table with resizable columns (drag handles update CSS variables → saved to settings).
 Multi-selection (Ctrl/Shift/Arrow keys), drag-to-playlist, context menu (Show in Folder — reveals
@@ -730,7 +743,7 @@ to `musicpenguin-settings.json` as `"400px"` strings. Hidden columns get `--col-
 so they don't occupy space. `saveColumnWidths()` saves `""` for hidden columns and is only
 called on mouseup (never on mousemove).
 
-### `src/detail-panel.ts`
+### `src/renderer/detail-panel.ts`
 
 Display form: path (editable — renames/moves file on disk via `db:moveFile`), title, artist, album,
 album artist, track/disc/year/genre/composer/conductor/rating/comment. Cover art loaded lazily
@@ -738,7 +751,7 @@ via `getCoverArt()`; tracks without art show a ♫ placeholder instead. Clicking
 the cover area — art or placeholder alike — always opens theater mode for the shown track
 (no track selected → click is ignored).
 
-### `src/now-playing.ts`
+### `src/renderer/now-playing.ts`
 
 Manages `<audio>` element. Two-row bar: track info + controls (play/pause, seek bar, time,
 duration, rating, **shuffle**, **repeat**, volume). Global playmode state (shuffle on/off,
@@ -747,6 +760,16 @@ smart shuffle: maintains a history set so no track repeats until all tracks in t
 source have been played. Saves `now-playing`/`volume`/`muted` to settings on `beforeunload`;
 shuffle/repeat are persisted via `saveSettings` on toggle. Restores position on startup.
 Double-click track info → theater mode.
+
+**Transport-control emoji use explicit variation selectors**: the previous/next track glyphs
+(`U+23EE` ⏮ / `U+23ED` ⏭) have `Emoji_Presentation = No`, so without an explicit `U+FE0F`
+variation selector they default to monochrome text presentation — the bare black triangles
+instead of Noto Color Emoji's orange-button colored version. This default is what Chromium
+renders on a plain Ubuntu 24 / openSUSE Leap 16 install, while the development machine
+happened to fall back to the colored form. Appending `U+FE0F` (`⏮️` / `⏭️`) forces emoji
+presentation and makes prev/next render colorfully everywhere — matching the play button
+`▶️` which already carries `U+FE0F`. Used consistently in both `index.html` (now-playing
+bar) and `theatermode.ts` (theater overlay prev/next).
 
 Only "significant" plays increment the play count (`MIN_PLAY_SECONDS` = 20): a play counts
 when at least 20 continuously played seconds were accumulated via `timeupdate` (seeks and
@@ -773,7 +796,7 @@ stream URLs (DLNA) are skipped entirely (`rescanFiles()` ignores http(s) paths �
 no locally readable tags), their duration gap being filled by the `<audio>`
 mechanism above.
 
-### `src/theatermode.ts`
+### `src/renderer/theatermode.ts`
 
 Fullscreen cover art overlay with playback controls, progress bar, prev/next buttons, cursor
 auto-hide, and crossfade transition (fade to black over the end of the current track, content
@@ -791,20 +814,20 @@ the fade-out is skipped when the current track's remaining time was never longer
 per-direction fade duration (track shorter than that, or theater mode opened too
 late), and the fade-in is skipped when the next track is shorter than the fade duration.
 If either side skips, no black hold and no animation happens at all. The combined
-fade-out + fade-in time is configured via `THEATER_FADE_TOTAL_MS` in `src/config.ts`;
+fade-out + fade-in time is configured via `THEATER_FADE_TOTAL_MS` in `src/common/config.ts`;
 half of it is used per direction (also applied to the `--tm-transition-duration` CSS
 variable at startup).
 
-### `src/file-probe.ts`
+### `src/renderer/file-probe.ts`
 
 `probeFileForErrors(bytes)` — inspects an in-memory file for known structural
 defects and returns the found errors as an array of `FILE_PROBE_ERROR` enum
 constants: `FILE_PROBE_ERROR.WAV_WRAPPED_MP3` (matching the detection in
 `fix_wav_mp3.py`) and `FILE_PROBE_ERROR.MPEG_LAYER_II` (MPEG-1 Layer II audio,
 which Chromium cannot decode). The read size limit (`MAX_PROBE_FILE_SIZE`)
-lives in `src/config.ts`.
+lives in `src/common/config.ts`.
 
-### `src/playback-error.ts`
+### `src/renderer/playback-error.ts`
 
 `handleAudioPlaybackError(filePath)` — probes a failed playback (see
 `src/file-probe.ts`) and shows an explanatory dialog with an optional "Try to
@@ -820,12 +843,12 @@ While theater mode is open, `setSilentSkipHandler()` (registered by
 `src/theatermode.ts`) swallows that dialog and skips forward to the next track
 instead; consecutive skips are capped and reset when playback actually starts.
 
-### `src/audio.ts`
+### `src/renderer/audio.ts`
 
 Exports the shared `HTMLAudioElement` instance and a `formatTime(number)` helper for the
 now-playing bar and theater mode.
 
-### `src/settings.ts`
+### `src/renderer/settings.ts`
 
 Overlay dialog with a dark mode toggle and close button. The folders dialog is opened
 independently by the Folders button in the groups panel (handled by `src/folders-dialog.ts`).
@@ -842,7 +865,7 @@ section from the left panel (empties the arrays, persists empty `group-items`, a
 current group was one of those sections, resets the selection to "All Tracks"), then closes
 the settings dialog.
 
-### `src/folders-dialog.ts`
+### `src/renderer/folders-dialog.ts`
 
 Separate overlay for managing scanned folders: add/remove folders, expand/collapse subdirectories,
 toggle per-folder checkboxes, and delete selected folders. Opened by the Folders button in the
@@ -858,7 +881,7 @@ and `dlnaServers` overrides) if any configuration changed; its summary is writte
 Scanning always runs even when no folders or DLNA servers are enabled — this ensures
 DB pruning still sweeps stale entries from previously removed folders/servers.
 
-### `src/scanner.ts`
+### `src/renderer/scanner.ts`
 
 Centralised scan orchestration. `runFullScan(opts?)` is the single entry-point for both the
 folders dialog close and the Scan button: loads folders/DLNA servers from settings (or uses
@@ -881,12 +904,12 @@ server was ever involved. `subscribeDlnaProgress()` wraps the `dlna:progress` pu
 its events carry the newly discovered track rows so `src/index.ts` can merge them into the
 library live (re-render throttled to ~400 ms) while enumeration is still running.
 
-### `src/split-pane.ts`
+### `src/renderer/split-pane.ts`
 
 Draggable dividers for groups width, list height, playlist width. Cross-handle knobs adjust
 both axes. State persisted to settings.
 
-### `src/playlist-panel.ts`
+### `src/renderer/playlist-panel.ts`
 
 Playlist with drag-drop reorder, randomize (Fisher-Yates), clear, multi-select, keyboard delete,
 auto-advance via `onTrackEnd`. Entries rebuilt from DB paths on load. Shuffle and repeat modes
@@ -936,7 +959,7 @@ when the timer expires (200 ms of inactivity) does the actual fetch batch execut
 **Cache lifecycle:** The ThumbnailCache persists for the session (survives scroll, reorder, filter).
 It is shared across all consumers (playlist, groups panel, any future UI).
 
-### `src/search-panel.ts`
+### `src/renderer/search-panel.ts`
 
 Library-wide search (regex mode, column checkboxes for path/title/artist/album/album artist/
 year/genre/composer/conductor/comment). Persists query, regex mode, and tag column state
@@ -1028,8 +1051,8 @@ write to allow toggling without restart.
 
 ## TypeScript Strictness
 
-`tsconfig.json` enforces `strict: true`, `noUncheckedIndexedAccess`, `noImplicitReturns`,
-`noFallthroughCasesInSwitch`.
+The TypeScript configs (`tsconfig.main.json` and `tsconfig.renderer.json`) enforce `strict: true`,
+`noUncheckedIndexedAccess`, `noImplicitReturns`, `noFallthroughCasesInSwitch`.
 
 ## Theme Detection
 
@@ -1040,14 +1063,14 @@ On startup, the initial theme is detected with this precedence:
    `ColorScheme` name or `BackgroundNormal`/`ForegroundNormal` colors using relative luminance)
 3. Default: dark
 
-The chosen theme is passed as `?theme=` query parameter when loading `index.html`, where an inline
+The chosen theme is passed as `?theme=` query parameter when loading `src/renderer/index.html`, where an inline
 script applies `data-theme` before the page renders to avoid flash.
 
 ## Language (i18n)
 
-All user-visible strings go through `t()` in `src/i18n/index.ts`. Lookup keys are the English
+All user-visible strings go through `t()` in `src/common/i18n/index.ts`. Lookup keys are the English
 source strings themselves; `en-us` needs no dictionary, other languages provide a translation map
-under `src/i18n/` (`de-de`, `fr-fr`, `es-es`). Dynamic text uses `$1`, `$2`, ... placeholders, e.g.
+under `src/common/i18n/` (`de-de`, `fr-fr`, `es-es`). Dynamic text uses `$1`, `$2`, ... placeholders, e.g.
 `t("$1 $2 in MusicPenguin database.", 5, "files")`.
 
 On startup the language is resolved with this precedence:
@@ -1056,7 +1079,7 @@ On startup the language is resolved with this precedence:
 2. OS locale (`app.getLocale()` — `de` → `de-de`, `fr` → `fr-fr`, `es` → `es-es`, otherwise `en-us`)
 3. Default: `en-us`
 
-The chosen language is passed as `?lang=` query parameter when loading `index.html`, so the page
+The chosen language is passed as `?lang=` query parameter when loading `src/renderer/index.html`, so the page
 renders in the right language without a flash. Changing the language in **Settings** applies
 instantly (static text via `data-i18n`/`data-i18n-title`/`data-i18n-placeholder` attributes,
 dynamic labels re-render on a `language-changed` event) and is persisted.

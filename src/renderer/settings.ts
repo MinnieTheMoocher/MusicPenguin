@@ -1,4 +1,4 @@
-import { getLanguage, setLanguage, t, LANGUAGES } from "./i18n/index.js";
+import { getLanguage, setLanguage, t, LANGUAGES } from "../common/i18n/index.js";
 import { initDebugLog } from "./debug-log.js";
 import { getExternalPlayer, checkExternalPlayerCommand, saveExternalPlayer } from "./external-player.js";
 import { getMinAutoplayRating, initMinAutoplayRating, saveMinAutoplayRating } from "./min-autoplay-rating.js";

@@ -19,19 +19,19 @@
     <div id="now-playing">
       <div id="now-playing-info">No track selected</div>
       <div id="now-playing-controls">
-        <button id="prev-btn" data-i18n-title="Previous Track" title="Previous Track">⏮</button>
-        <button id="play-btn" data-i18n-title="Play" title="Play">▶️</button>
-        <button id="next-btn" data-i18n-title="Next Track" title="Next Track">⏭</button>
-        <button id="repeat-btn" class="btn-icon" data-i18n-title="Repeat" title="Repeat">🔁</button>
-        <button id="shuffle-btn" class="btn-icon" data-i18n-title="Shuffle" title="Shuffle">🔀</button>
-        <span id="current-time" data-i18n-title="Elapsed time of current track" title="Elapsed time of current track">0:00</span>
+        <button id="prev-btn" data-i18n-title="Previous Track" title="Previous Track"></button>
+        <button id="play-btn" data-i18n-title="Play" title="Play"></button>
+        <button id="next-btn" data-i18n-title="Next Track" title="Next Track"></button>
+        <button id="repeat-btn" class="btn-icon" data-i18n-title="Repeat" title="Repeat"></button>
+        <button id="shuffle-btn" class="btn-icon" data-i18n-title="Shuffle" title="Shuffle"></button>
+        <span id="current-time" data-i18n-title="Elapsed time of current track" title="Elapsed time of current track">00:00</span>
         <div id="progress-track" data-i18n-title="Progress" title="Progress">
           <div id="progress-fill"></div>
         </div>
-        <span id="duration" data-i18n-title="Track length" title="Track length">0:00</span>
+        <span id="duration" data-i18n-title="Track length" title="Track length">00:00</span>
         <span id="now-playing-rating" data-i18n-title="Rating" title="Rating"></span>
         <div id="volume-section">
-          <button id="volume-icon" data-i18n-title="Mute" title="Mute">🔊</button>
+          <button id="volume-icon" data-i18n-title="Mute" title="Mute"></button>
           <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="1" data-i18n-title="Volume" title="Volume" />
         </div>
       </div>
@@ -44,12 +44,12 @@
           <ul id="groups-list"></ul>
         </div>
         <hr class="panel-divider" />
-        <img id="large-application-logo" src="res/musicpenguin256.png" alt="MusicPenguin" data-i18n-title="About MusicPenguin" title="About MusicPenguin" />
+        <img id="large-application-logo" src="musicpenguin256.png" alt="MusicPenguin" data-i18n-title="About MusicPenguin" title="About MusicPenguin" />
         <div id="groups-buttons">
-          <button id="folders-btn" data-i18n-title="Choose Folders with Audio Files" title="Choose Folders with Audio Files">📁</button>
-          <button id="scan-btn" data-i18n-title="Re-Scan Files" title="Re-Scan Files">🏷️</button>
-          <button id="problematic-btn" hidden data-i18n-title="Show Problematic Files" title="Show Problematic Files">⚠️</button>
-          <button id="settings-btn" data-i18n-title="Settings" title="Settings">⚙</button>
+        <button id="folders-btn" data-i18n-title="Choose Folders with Audio Files" title="Choose Folders with Audio Files"></button>
+        <button id="scan-btn" data-i18n-title="Re-Scan Files" title="Re-Scan Files"></button>
+        <button id="problematic-btn" hidden data-i18n-title="Show Problematic Files" title="Show Problematic Files"></button>
+        <button id="settings-btn" data-i18n-title="Settings" title="Settings"></button>
         </div>
       </aside>
 
@@ -91,7 +91,7 @@
             <div id="cover-col">
               <div id="cover-area">
                 <img id="cover-image" data-i18n-alt="Cover" alt="Cover" />
-                <span id="cover-placeholder">♫</span>
+                <span id="cover-placeholder"></span>
               </div>
               <div id="search-btn-container"></div>
             </div>
@@ -135,7 +135,7 @@
           <div id="search-bar">
             <input type="text" id="search-input" data-i18n-placeholder="Search..." placeholder="Search..." />
             <button id="regex-btn" class="btn-icon" data-i18n-title="RegEx Mode" title="RegEx Mode">.*</button>
-            <button id="search-btn" class="btn-icon" data-i18n-title="Search" title="Search">🔍</button>
+            <button id="search-btn" class="btn-icon" data-i18n-title="Search" title="Search"></button>
           </div>
           <div id="search-tags">
             <label class="search-tag"><input type="checkbox" id="search-tag-title" checked /> <span data-i18n="Title">Title</span></label>
@@ -154,11 +154,11 @@
         <aside id="playlist-panel">
           <h2 data-i18n="Playlist">Playlist</h2>
           <div id="playlist-toolbar">
-            <button id="playlist-play-btn" class="btn-icon" data-i18n-title="Play Playlist" title="Play Playlist">▶️</button>
-            <button id="randomize-btn" class="btn-icon" data-i18n-title="Randomize Playlist" title="Randomize Playlist">🎲</button>
-            <button id="clear-playlist-btn" class="btn-icon" data-i18n-title="Clear Playlist" title="Clear Playlist">🧹</button>
-            <button id="save-playlist-btn" class="btn-icon" data-i18n-title="Save Playlist" title="Save Playlist">💾</button>
-            <button id="load-playlist-btn" class="btn-icon" data-i18n-title="Load Playlist" title="Load Playlist">📂</button>
+        <button id="playlist-play-btn" class="btn-icon" data-i18n-title="Play Playlist" title="Play Playlist"></button>
+        <button id="randomize-btn" class="btn-icon" data-i18n-title="Randomize Playlist" title="Randomize Playlist"></button>
+        <button id="clear-playlist-btn" class="btn-icon" data-i18n-title="Clear Playlist" title="Clear Playlist"></button>
+        <button id="save-playlist-btn" class="btn-icon" data-i18n-title="Save Playlist" title="Save Playlist"></button>
+        <button id="load-playlist-btn" class="btn-icon" data-i18n-title="Load Playlist" title="Load Playlist"></button>
           </div>
           <div id="playlist-container">
             <ul id="playlist-list"></ul>
@@ -274,7 +274,7 @@
         <button id="about-dialog-close" class="dialog-close" data-i18n-title="Close" title="Close">×</button>
       </div>
       <div class="dialog-body about-body">
-        <img id="about-logo" src="res/musicpenguin256.png" alt="MusicPenguin" />
+        <img id="about-logo" src="musicpenguin256.png" alt="MusicPenguin" />
         <div id="about-app-name">MusicPenguin</div>
         <div id="about-version"></div>
         <div id="about-by">by MusicPenguin@web.de</div>
@@ -287,6 +287,6 @@
     </div>
   </div>
 
-  <script type="module" src="dist/bundle.js"></script>
+  <script type="module" src="../../dist/bundle.js"></script>
 </body>
 </html>

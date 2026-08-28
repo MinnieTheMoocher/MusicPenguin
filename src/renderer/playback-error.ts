@@ -4,7 +4,7 @@ import { probeFileForErrors, extractMp3FromWavMp3, FILE_PROBE_ERROR } from "./fi
 import { clearPlayingIndicators, isRestoringPersistedState, noteExternalPlays } from "./now-playing.js";
 import { getExternalPlayer, getExternalPlayerDisplayName } from "./external-player.js";
 import { audio } from "./audio.js";
-import { t } from "./i18n/index.js";
+import { t } from "../common/i18n/index.js";
 
 let handlingSource: string | null = null;
 let activeBlobUrl: string | null = null;

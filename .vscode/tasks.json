@@ -7,7 +7,7 @@
       "command": "bash",
       "args": [
         "-c",
-        "rm -rf ./dist/ ./node_modules/ ./*.deb"
+        "rm -rf ./dist/ ./node_modules/ ./*.deb ./*.rpm"
       ],
       "group": {
         "kind": "build",
@@ -30,12 +30,12 @@
       "problemMatcher": []
     },
     {
-      "label": "pack",
+      "label": "create-packages",
       "type": "shell",
       "command": "bash",
       "args": [
         "-c",
-        "./pack-deb.bash"
+        "./create-packages.bash"
       ],
       "group": {
         "kind": "build",

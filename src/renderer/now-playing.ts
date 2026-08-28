@@ -4,9 +4,9 @@ import { setupRatingHover } from "./list-view.js";
 import { updatePlaylistPlayingIndicator } from "./playlist-panel.js";
 import { onPlaybackFailure } from "./playback-error.js";
 import { getExternalPlayer } from "./external-player.js";
-import { t } from "./i18n/index.js";
+import { t } from "../common/i18n/index.js";
 import { debugLog } from "./debug-log.js";
-import { SHUFFLE_ON, SHUFFLE_OFF, REPEAT_OFF, REPEAT_ONE, REPEAT_ALL } from "./icons.js";
+import { ICON_SHUFFLE_ON, ICON_SHUFFLE_OFF, ICON_REPEAT_OFF, ICON_REPEAT_ONE, ICON_REPEAT_ALL } from "./icons.js";
 
 const playBtn = document.getElementById("play-btn") as HTMLButtonElement;
 const prevBtn = document.getElementById("prev-btn") as HTMLButtonElement;
@@ -29,9 +29,9 @@ let repeat: RepeatMode = "off";
 
 const REPEAT_CYCLE: RepeatMode[] = ["off", "one", "all"];
 const REPEAT_ICONS: Record<RepeatMode, string> = {
-  off: REPEAT_OFF,
-  one: REPEAT_ONE,
-  all: REPEAT_ALL,
+  off: ICON_REPEAT_OFF,
+  one: ICON_REPEAT_ONE,
+  all: ICON_REPEAT_ALL,
 };
 
 let playModeChangeCallbacks: Array<() => void> = [];
@@ -47,7 +47,7 @@ const shuffleBtn = document.getElementById("shuffle-btn") as HTMLButtonElement;
 const repeatBtn = document.getElementById("repeat-btn") as HTMLButtonElement;
 
 function updateShuffleBtn(): void {
-  shuffleBtn.textContent = shuffle ? SHUFFLE_ON : SHUFFLE_OFF;
+  shuffleBtn.textContent = shuffle ? ICON_SHUFFLE_ON : ICON_SHUFFLE_OFF;
   shuffleBtn.title = t(shuffle ? "Disable Shuffle" : "Enable Shuffle");
   shuffleBtn.classList.toggle("active", shuffle);
 }
@@ -267,8 +267,8 @@ export function resetNowPlayingWidget(): void {
   setPlayButton(false);
   progressFill.style.transition = "none";
   progressFill.style.width = "0%";
-  currentTimeEl.textContent = "0:00";
-  durationEl.textContent = "0:00";
+  currentTimeEl.textContent = "00:00";
+  durationEl.textContent = "00:00";
   nowPlayingRating.innerHTML = "";
   delete nowPlayingRating.dataset.trackPath;
 }
@@ -310,7 +310,7 @@ document.addEventListener("language-changed", () => {
 function resetProgress(): void {
   progressFill.style.transition = "none";
   progressFill.style.width = "0%";
-  currentTimeEl.textContent = "0:00";
+  currentTimeEl.textContent = "00:00";
 }
 
 audio.addEventListener("timeupdate", () => {
@@ -419,7 +419,7 @@ audio.addEventListener("error", () => {
   actuallyPlaying = false;
   setPlayButton(false);
   resetProgress();
-  durationEl.textContent = "0:00";
+  durationEl.textContent = "00:00";
   updateListPlayingIndicator();
 });
 

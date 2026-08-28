@@ -5,8 +5,8 @@ import { formatTime } from "./list-view.js";
 import { audio } from "./audio.js";
 import { getThumbnail, fetchThumbnail } from "./thumbnail-cache.js";
 import { onPlaybackFailure } from "./playback-error.js";
-import { t } from "./i18n/index.js";
-import { SPEAKER } from "./icons.js";
+import { t } from "../common/i18n/index.js";
+import { ICON_SPEAKER, ICON_PLAY, ICON_PAUSE } from "./icons.js";
 import { passesMinAutoplayRating } from "./min-autoplay-rating.js";
 import { ARTIST_ALBUM_TRACKNO, SORTING_MODES, sortPlaylistByArtistAlbumTrackNo } from "./sorting.js";
 
@@ -161,10 +161,10 @@ function updatePlayPauseBtn(): void {
   const isPaused = audio.paused;
   const isPlaying = currentPlaylistIndex !== null;
   if (isPlaying && !isPaused) {
-    playlistPlayBtn.textContent = "\u23F8\uFE0F";
+    playlistPlayBtn.textContent = ICON_PAUSE;
     playlistPlayBtn.title = t("Pause Playlist");
   } else {
-    playlistPlayBtn.textContent = "\u25B6\uFE0F";
+    playlistPlayBtn.textContent = ICON_PLAY;
     playlistPlayBtn.title = t("Play Playlist");
   }
 }
@@ -186,7 +186,7 @@ export function updatePlaylistPlayingIndicator(): void {
       const indicator = items[i]!.querySelector<HTMLElement>(".playlist-playing");
       if (indicator) {
         const di = firstIdx + i;
-        indicator.textContent = isActuallyPlaying() && di === currentPlaylistIndex ? SPEAKER : "";
+        indicator.textContent = isActuallyPlaying() && di === currentPlaylistIndex ? ICON_SPEAKER : "";
       }
     }
   } else {
@@ -196,7 +196,7 @@ export function updatePlaylistPlayingIndicator(): void {
       if (indicator) {
         const di = firstIdx + i;
         if (!placed && isActuallyPlaying() && di < playlist.length && playlist[di]!.path === selectedPath) {
-          indicator.textContent = SPEAKER;
+          indicator.textContent = ICON_SPEAKER;
           placed = true;
         } else {
           indicator.textContent = "";

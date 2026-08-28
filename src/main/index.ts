@@ -7,7 +7,7 @@ import * as os from "os";
 import { fileURLToPath } from "url";
 
 import { SETTINGS_DIR, SETTINGS_PATH } from "./paths";
-import { setLanguage, t } from "../i18n/index";
+import { setLanguage, t } from "../common/i18n/index";
 
 app.setPath("userData", path.join(os.homedir(), ".cache", "musicpenguin"));
 app.setAppUserModelId("musicpenguin");
@@ -20,15 +20,18 @@ import type { DlnaScanTarget } from "./dlna";
 import { getCoverArt, getCoverArtGroups, fetchDlnaCoverArt, resizeToThumbnail } from "./cover-art";
 import { getTrackArtUrls, setTrackArtUrls } from "./database";
 import { walkDirectory, commandExists, jsonStringify, isExecutableCommand } from "./utils";
-import { PLAYABLE_FILE_EXTENSIONS } from "../config";
+import { PLAYABLE_FILE_EXTENSIONS } from "../common/config";
 import { spawn } from "child_process";
 
 import type { SqlJsDatabase, ScannedFileInfo } from "./types";
 
-import { DEFAULT_SEARCH_URLS, MAX_PROBE_FILE_SIZE } from "../config";
+import { DEFAULT_SEARCH_URLS, MAX_PROBE_FILE_SIZE } from "../common/config";
 import { initMpris, updateMprisState } from "./mpris";
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
+const APP_ICON = path.join(PROJECT_ROOT, "src", "renderer", "musicpenguin256.png");
+const PRELOAD_PATH = path.join(PROJECT_ROOT, "src", "preload", "preload.js");
+const RENDERER_HTML = path.join(PROJECT_ROOT, "src", "renderer", "index.html");
 
 let mainWindow: BrowserWindow | null = null;
 let db: SqlJsDatabase | null = null;
@@ -135,9 +138,9 @@ function createWindow() {
     height: 600,
     show: false,
     backgroundColor: "#000000",
-    icon: path.join(PROJECT_ROOT, "res", "musicpenguin256.png"),
+    icon: APP_ICON,
     webPreferences: {
-      preload: path.join(PROJECT_ROOT, "preload.js"),
+      preload: PRELOAD_PATH,
       contextIsolation: true,
       nodeIntegration: false,
     },
@@ -185,7 +188,7 @@ function createWindow() {
 
   mainWindow.on("close", saveWindowState);
 
-  mainWindow.loadFile(path.join(PROJECT_ROOT, "index.html"), {
+  mainWindow.loadFile(RENDERER_HTML, {
     query: {
       theme: detectInitialTheme(SETTINGS_PATH),
       lang: detectInitialLanguage(),

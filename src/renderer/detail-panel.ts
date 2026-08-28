@@ -1,7 +1,7 @@
 import { ListItem } from "./types.js";
 import { setupRatingHover, renderRating } from "./list-view.js";
 import { showTheaterMode } from "./theatermode.js";
-import { t } from "./i18n/index.js";
+import { t } from "../common/i18n/index.js";
 
 const pathInput = document.getElementById("field-path") as HTMLInputElement;
 const titleInput = document.getElementById("field-title") as HTMLInputElement;
@@ -71,7 +71,7 @@ function searchLabelFromUrl(url: string): string {
   return t("Search");
 }
 
-import { DEFAULT_SEARCH_URLS } from "./config.js";
+import { DEFAULT_SEARCH_URLS } from "../common/config.js";
 
 const SEARCH_REPLACEMENTS: [RegExp, string][] = [
   [/ - /g, " "],

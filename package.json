@@ -1,6 +1,6 @@
 {
   "name": "musicpenguin",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "homepage": "https://github.com/MinnieTheMoocher/MusicPenguin",
   "author": "MusicPenguin@web.de",
   "description": "MusicPenguin - A fast Linux audio library and player",
@@ -12,14 +12,14 @@
   "main": "main.js",
   "scripts": {
     "build": "npm run typecheck && npm run build:main && npm run build:renderer",
-    "typecheck": "tsc --noEmit",
-    "layout": "firefox index.html",
-    "build:renderer": "esbuild --bundle src/index.ts --outfile=dist/bundle.js --format=esm --sourcemap",
-    "build:main": "esbuild --bundle src/main-process/index.ts --outfile=dist/main-bundle.js --platform=node --format=cjs --external:electron --external:music-metadata --external:sql.js --sourcemap",
-    "watch": "npm run typecheck && esbuild --bundle src/index.ts --outfile=dist/bundle.js --format=esm --sourcemap --watch",
+    "typecheck": "tsc --noEmit -p tsconfig.main.json && tsc --noEmit -p tsconfig.renderer.json",
+    "layout": "firefox src/renderer/index.html",
+    "build:renderer": "esbuild --bundle src/renderer/index.ts --outfile=dist/bundle.js --format=esm --sourcemap",
+    "build:main": "esbuild --bundle src/main/index.ts --outfile=dist/main-bundle.js --platform=node --format=cjs --external:electron --external:music-metadata --external:sql.js --sourcemap",
+    "watch": "npm run typecheck && esbuild --bundle src/renderer/index.ts --outfile=dist/bundle.js --format=esm --sourcemap --watch",
     "start": "npm run build && electron .",
     "electron": "electron .",
-    "clean": "rm -rf ./node_modules ./dist ./*.deb"
+    "clean": "rm -rf ./node_modules ./dist ./*.deb ./*.rpm"
   },
   "keywords": [
     "linux",
@@ -36,7 +36,7 @@
   },
   "dependencies": {
     "dbus-native": "^0.15.1",
-    "electron": "^42.3.2",
+    "electron": "^43.4.1",
     "fast-xml-parser": "^5.11.0",
     "music-metadata": "^11.14.0",
     "sql.js": "^1.14.1"

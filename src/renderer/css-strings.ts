@@ -1,4 +1,4 @@
-import { t } from "./i18n/index.js";
+import { t } from "../common/i18n/index.js";
 
 /**
  * Every string that style.css renders via `content:` is defined here and

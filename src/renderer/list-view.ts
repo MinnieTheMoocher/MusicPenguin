@@ -1,9 +1,9 @@
 import { ListItem } from "./types.js";
 import { audio } from "./audio.js";
-import { t } from "./i18n/index.js";
+import { t } from "../common/i18n/index.js";
 import { noteExternalPlays } from "./now-playing.js";
 import { getExternalPlayer, getExternalPlayerDisplayName } from "./external-player.js";
-import { DEFAULT_COLUMN_WIDTHS } from "./config.js";
+import { DEFAULT_COLUMN_WIDTHS } from "../common/config.js";
 import { ARTIST_ALBUM_TRACKNO, SORTING_MODES } from "./sorting.js";
 
 let listSortColumn = "";

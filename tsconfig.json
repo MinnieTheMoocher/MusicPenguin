@@ -1,16 +1,33 @@
 {
+  // ROOT / EDITOR CONFIG
+  //
+  // This file exists ONLY for IDE / editor support (VS Code etc.), so the
+  // editor can type-check the whole `src/` tree from the project root.
+  //
+  // IMPORTANT: it does NOT participate in `npm run typecheck`. The real
+  // per-process type checks are driven by `tsconfig.main.json` and
+  // `tsconfig.renderer.json` (see the `typecheck` script in package.json).
+  // Because those two share `src/common/`, this file CANNOT use TypeScript
+  // `references` to point at them (that requires `composite`, which forbids
+  // projects from importing files outside their own include list). So this
+  // config simply repeats the shared strict options and covers all of `src`.
+  //
+  // If you tweak strictness here, mirror it in the other two configs.
   "compilerOptions": {
-    "target": "ES2022",
+    // Shared strictness / emit-less settings. `noEmit: true` because this is
+    // editor-only: the actual JS emit is done by esbuild, never by tsc.
     "module": "ES2022",
     "moduleResolution": "bundler",
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
+    "sourceMap": true,
+    "declaration": false,
+    "target": "ES2022",
     "outDir": "dist",
     "rootDir": "src",
-    "sourceMap": true,
-    "declaration": false
+    "noEmit": true
   },
   "include": ["src"]
 }

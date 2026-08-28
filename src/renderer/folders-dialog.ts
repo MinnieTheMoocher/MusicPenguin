@@ -1,6 +1,6 @@
 import { FolderNode, fileCountLabel, saveDlnaServers, loadDlnaServers, loadFolders, runFullScan, subscribeDlnaProgress, subscribeDlnaServerChanges } from "./scanner.js";
 import { DLNA_SERVER } from "./icons.js";
-import { t } from "./i18n/index.js";
+import { t } from "../common/i18n/index.js";
 import { debugLog } from "./debug-log.js";
 
 let folders: FolderNode[] = [];

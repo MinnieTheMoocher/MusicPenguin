@@ -5,7 +5,7 @@ import { parseFile } from "music-metadata";
 
 import { withTimeout } from "./utils";
 import { saveDb, DB_VERSION } from "./database";
-import { TAG_BATCH_SIZE, NUM_TAG_READER_THREADS, TAG_SAVE_INTERVAL } from "../config";
+import { TAG_BATCH_SIZE, NUM_TAG_READER_THREADS, TAG_SAVE_INTERVAL } from "../common/config";
 import type { SqlJsDatabase, SendToRenderer } from "./types";
 
 function isRecord(v: unknown): v is Record<string, unknown> {
