@@ -1,14 +1,15 @@
 import { PlaylistEntry } from "./types.js";
-import { playTrack, selectedPath, isActuallyPlaying } from "./now-playing.js";
+import { playTrack, loadTrack, selectedPath, isActuallyPlaying, getShuffle, getRepeat, onPlayModeChange, pickRandomExcluding, isPlayableFile, noteExternalPlays } from "./now-playing.js";
+import { getExternalPlayer, getExternalPlayerDisplayName } from "./external-player.js";
 import { formatTime } from "./list-view.js";
 import { audio } from "./audio.js";
+import { getThumbnail, fetchThumbnail } from "./thumbnail-cache.js";
 import { onPlaybackFailure } from "./playback-error.js";
 import { t } from "./i18n/index.js";
+import { SPEAKER } from "./icons.js";
+import { passesMinAutoplayRating } from "./min-autoplay-rating.js";
+import { ARTIST_ALBUM_TRACKNO, SORTING_MODES, sortPlaylistByArtistAlbumTrackNo } from "./sorting.js";
 
-type RepeatMode = "off" | "one" | "all";
-
-let shuffle = false;
-let repeat: RepeatMode = "off";
 let playlist: PlaylistEntry[] = [];
 let selectedIndices: Set<number> = new Set();
 let lastClickedIndex: number | null = null;
@@ -21,13 +22,23 @@ let onSelectCallbacks: Array<(path: string) => void> = [];
 export function onPlaylistSelect(cb: (path: string) => void): void {
   onSelectCallbacks.push(cb);
 }
+let mainListSelectionQuery: () => boolean = () => false;
+export function registerMainListSelectionQuery(cb: () => boolean): void {
+  mainListSelectionQuery = cb;
+}
 let playlistSortColumn = "";
 let playlistSortDirection: "asc" | "desc" = "asc";
 let onGotoAlbumPlaylistCb: ((path: string) => void) | null = null;
 let onGotoFolderPlaylistCb: ((path: string) => void) | null = null;
+let onGotoArtistPlaylistCb: ((path: string) => void) | null = null;
+let onGotoComposerPlaylistCb: ((path: string) => void) | null = null;
 
 function sortPlaylist(): void {
   if (!playlistSortColumn) return;
+  if (playlistSortColumn === ARTIST_ALBUM_TRACKNO) {
+    sortPlaylistByArtistAlbumTrackNo(playlist);
+    return;
+  }
   playlist.sort((a, b) => {
     if (playlistSortColumn === "rating" || playlistSortColumn === "playcount") {
       const aVal = a[playlistSortColumn] ?? 0;
@@ -64,6 +75,20 @@ const SORT_COLUMNS = [
 ];
 
 const TRACK_MIME = "application/x-musicpenguin-track";
+const PLAYLIST_INDEX_MIME = "application/x-musicpenguin-playlist-index";
+
+/* Drag payloads carry a JSON array of source indices (ascending). */
+function parseDragIndices(raw: string): number[] {
+  let arr: unknown;
+  try {
+    arr = JSON.parse(raw);
+  } catch {
+    const n = parseInt(raw, 10);
+    return isNaN(n) ? [] : [n];
+  }
+  const list = Array.isArray(arr) ? arr : [arr];
+  return [...new Set(list.map((v) => Number(v)).filter((n) => Number.isInteger(n) && n >= 0))].sort((a, b) => a - b);
+}
 
 function makeEntry(path: string, row?: Track): PlaylistEntry {
   return {
@@ -86,6 +111,7 @@ function makeEntry(path: string, row?: Track): PlaylistEntry {
     ext: row?.filename && row.filename.includes(".") ? row.filename.split(".").pop()!.toLowerCase() : "",
     trackPath: path,
     id: path,
+    dlna: row?.dlna === 1,
   };
 }
 
@@ -106,8 +132,6 @@ async function rebuildFromPaths(paths: string[]): Promise<void> {
 async function loadState(): Promise<void> {
   try {
     const data = await window.electronAPI.loadSettings();
-    if (typeof data?.shuffle === "boolean") shuffle = data.shuffle;
-    if (data?.repeat === "one" || data?.repeat === "all") repeat = data.repeat;
     if (data?.["playlist-sort-column"]) playlistSortColumn = data["playlist-sort-column"];
     if (data?.["playlist-sort-direction"] === "asc" || data?.["playlist-sort-direction"] === "desc") playlistSortDirection = data["playlist-sort-direction"];
     const storedPaths = await window.electronAPI.loadPlaylistStateFile();
@@ -117,28 +141,13 @@ async function loadState(): Promise<void> {
 
 async function persistState(): Promise<void> {
   try {
-    const data = await window.electronAPI.loadSettings();
-    if (data && typeof data === "object") delete (data as Record<string, unknown>)["playlist"];
     await window.electronAPI.saveSettings({
-      ...(data || {}),
-      shuffle,
-      repeat,
       "playlist-sort-column": playlistSortColumn || undefined,
       "playlist-sort-direction": playlistSortDirection,
     });
     await window.electronAPI.savePlaylistStateFile(playlist.map((e) => e.path));
   } catch { /* ignore */ }
 }
-
-const SHUFFLE_ON = "\u{1F500}";
-const SHUFFLE_OFF = "\u{1F500}";
-
-const REPEAT_CYCLE: RepeatMode[] = ["off", "one", "all"];
-const REPEAT_ICONS: Record<RepeatMode, string> = {
-  off: "\u{1F501}",
-  one: "\u{1F502}",
-  all: "\u{1F501}",
-};
 
 let plViewport: HTMLElement;
 let playListEl: HTMLUListElement;
@@ -160,19 +169,6 @@ function updatePlayPauseBtn(): void {
   }
 }
 
-function updateShuffleBtn(btn: HTMLButtonElement): void {
-  btn.textContent = shuffle ? SHUFFLE_ON : SHUFFLE_OFF;
-  btn.title = t(shuffle ? "Disable Shuffle" : "Enable Shuffle");
-  btn.classList.toggle("active", shuffle);
-}
-
-function updateRepeatBtn(btn: HTMLButtonElement): void {
-  const next = REPEAT_CYCLE[(REPEAT_CYCLE.indexOf(repeat) + 1) % REPEAT_CYCLE.length]!;
-  btn.textContent = REPEAT_ICONS[repeat];
-  btn.title = t(next === "all" ? "Repeat All" : next === "one" ? "Repeat 1" : "Repeat Off");
-  btn.classList.toggle("active", repeat !== "off");
-}
-
 function clearSelection(): void {
   selectedIndices.clear();
   lastClickedIndex = null;
@@ -190,7 +186,7 @@ export function updatePlaylistPlayingIndicator(): void {
       const indicator = items[i]!.querySelector<HTMLElement>(".playlist-playing");
       if (indicator) {
         const di = firstIdx + i;
-        indicator.textContent = isActuallyPlaying() && di === currentPlaylistIndex ? "\u{1F50A}" : "";
+        indicator.textContent = isActuallyPlaying() && di === currentPlaylistIndex ? SPEAKER : "";
       }
     }
   } else {
@@ -200,7 +196,7 @@ export function updatePlaylistPlayingIndicator(): void {
       if (indicator) {
         const di = firstIdx + i;
         if (!placed && isActuallyPlaying() && di < playlist.length && playlist[di]!.path === selectedPath) {
-          indicator.textContent = "\u{1F50A}";
+          indicator.textContent = SPEAKER;
           placed = true;
         } else {
           indicator.textContent = "";
@@ -220,15 +216,22 @@ function syncPlaylistIndex(): void {
 }
 
 function getNextIndex(currentIdx: number): number | null {
-  if (repeat === "one") return currentIdx;
+  const r = getRepeat();
+  const s = getShuffle();
 
-  if (shuffle) {
-    return Math.floor(Math.random() * playlist.length);
+  if (r === "one") return currentIdx;
+
+  if (s) {
+    const paths = playlist.map((e) => e.path);
+    const currentPath = playlist[currentIdx]?.path ?? null;
+    const picked = pickRandomExcluding(paths, currentPath);
+    if (picked === null) return null;
+    return playlist.findIndex((e) => e.path === picked);
   }
 
   const next = currentIdx + 1;
   if (next >= playlist.length) {
-    if (repeat === "all") return 0;
+    if (r === "all") return 0;
     return null;
   }
   return next;
@@ -243,14 +246,19 @@ function randomIndexExcluding(exclude: number): number {
   return candidates[Math.floor(Math.random() * candidates.length)]!;
 }
 
-function playFrom(index: number): void {
+function playFrom(index: number, autoPlay = true): void {
   if (index < 0 || index >= playlist.length) return;
   syncPlaylistIndex();
   clearPlayingFlag();
   currentPlaylistIndex = index;
   const entry = playlist[index]!;
   entry._playing = true;
-  playTrack(entry.path, entry.title);
+  if (autoPlay) {
+    playTrack(entry.path, entry.title);
+  } else {
+    const fn = !audio.paused ? playTrack : loadTrack;
+    fn(entry.path, entry.title);
+  }
   scrollToIndex(index);
   renderPlaylist();
   updatePlayPauseBtn();
@@ -262,6 +270,24 @@ export function clearPlaylistPlaying(): void {
   updatePlayPauseBtn();
 }
 
+/* When new tracks land in the playlist while a MAIN-LIST track is
+   currently playing and that track is part of the playlist, the
+   playlist adopts it as its current entry: play/pause button reflects
+   playlist-playing mode, the 🔊 indicator anchors to that row and
+   prev/next operate on the playlist from here on. */
+function adoptPlayingTrackIntoPlaylist(): void {
+  if (currentPlaylistIndex !== null) return;
+  if (!isActuallyPlaying() || !selectedPath) return;
+  const idx = playlist.findIndex((e) => e.path === selectedPath);
+  if (idx === -1) return;
+  clearPlayingFlag();
+  currentPlaylistIndex = idx;
+  playlist[idx]!._playing = true;
+  updatePlayPauseBtn();
+  updatePlaylistPlayingIndicator();
+  playlistStateChangeCallbacks.forEach((cb) => cb());
+}
+
 export function isPlaylistPlaying(): boolean {
   return currentPlaylistIndex !== null;
 }
@@ -269,32 +295,64 @@ export function isPlaylistPlaying(): boolean {
 export function canPlaylistPrev(): boolean {
   syncPlaylistIndex();
   if (currentPlaylistIndex === null || playlist.length === 0) return false;
+  if (getShuffle()) return true;
   if (currentPlaylistIndex > 0) return true;
-  return repeat === "all";
+  return getRepeat() === "all";
 }
 
 export function canPlaylistNext(): boolean {
   syncPlaylistIndex();
   if (currentPlaylistIndex === null || playlist.length === 0) return false;
-  if (shuffle) return true;
+  if (getShuffle()) return true;
   if (currentPlaylistIndex + 1 < playlist.length) return true;
-  return repeat === "all";
+  return getRepeat() === "all";
 }
 
-export function prevPlaylist(): void {
+export function prevPlaylist(autoPlay = true): void {
   syncPlaylistIndex();
   if (currentPlaylistIndex === null || playlist.length === 0) return;
-  const prev = currentPlaylistIndex - 1;
-  if (prev < 0) {
-    if (repeat === "all") { playFrom(playlist.length - 1); }
+
+  if (getShuffle()) {
+    const paths = playlist.map((e) => e.path);
+    const currentPath = playlist[currentPlaylistIndex]?.path ?? null;
+    const tried = new Set<string>();
+    let picked: string | null = pickRandomExcluding(paths, currentPath);
+    while (picked !== null && !isPlayableFile(picked)) {
+      if (tried.has(picked)) { picked = null; break; }
+      tried.add(picked);
+      picked = pickRandomExcluding(paths, picked);
+    }
+    if (picked !== null) {
+      const idx = playlist.findIndex((e) => e.path === picked);
+      if (idx !== -1) playFrom(idx, autoPlay);
+    }
     return;
   }
-  playFrom(prev);
+
+  const n = playlist.length;
+  for (let j = currentPlaylistIndex - 1; j >= 0; j--) {
+    if (isPlayableFile(playlist[j]!.path)) { playFrom(j, autoPlay); return; }
+  }
+  if (getRepeat() === "all") {
+    for (let j = n - 1; j > currentPlaylistIndex; j--) {
+      if (isPlayableFile(playlist[j]!.path)) { playFrom(j, autoPlay); return; }
+    }
+  }
 }
-export function advancePlaylist(): void {
+export function advancePlaylist(autoPlay = true): void {
   syncPlaylistIndex();
   if (currentPlaylistIndex === null) return;
-  const next = getNextIndex(currentPlaylistIndex);
+  /* Auto-advance skips tracks below the configured minimum rating.
+     Repeat-one replays the CURRENT track — it was already chosen, so
+     the filter must not abort it. */
+  const ratingFilter = autoPlay && getRepeat() !== "one";
+  const tried = new Set<number>();
+  let next = getNextIndex(currentPlaylistIndex);
+  while (next !== null && (!isPlayableFile(playlist[next]!.path) || (ratingFilter && !passesMinAutoplayRating(playlist[next]!.rating)))) {
+    if (tried.has(next)) { next = null; break; }
+    tried.add(next);
+    next = getNextIndex(next);
+  }
   if (next === null) {
     clearPlayingFlag();
     currentPlaylistIndex = null;
@@ -302,71 +360,13 @@ export function advancePlaylist(): void {
     updatePlayPauseBtn();
     return;
   }
-  playFrom(next);
+  playFrom(next, autoPlay);
 }
 
 function formatDuration(sec: string): string {
   const n = parseFloat(sec);
   if (isNaN(n) || n <= 0) return "??:??";
   return formatTime(sec);
-}
-
-const coverCache = new Map<string, string | null>();
-
-interface CoverJob {
-  path: string;
-  li: HTMLLIElement | null;
-}
-
-let coverQueue: CoverJob[] = [];
-let coverDraining = false;
-let coverIntersecting = false;
-
-function coversAllowed(): boolean {
-  return document.visibilityState === "visible" && coverIntersecting;
-}
-
-function resetCoverImg(img: HTMLImageElement): void {
-  img.classList.remove("loaded");
-  img.src = "";
-  img.onload = null;
-  img.onerror = null;
-}
-
-function showImgWhenReady(img: HTMLImageElement, src: string): void {
-  img.classList.remove("loaded");
-  if (!src) { img.src = ""; return; }
-  img.onload = () => { img.classList.add("loaded"); };
-  img.onerror = () => { img.classList.remove("loaded"); };
-  img.src = src;
-  if (img.complete) img.classList.add("loaded");
-}
-
-async function drainCoverQueue(): Promise<void> {
-  if (coverDraining || !coversAllowed()) return;
-  coverDraining = true;
-  while (coverQueue.length > 0) {
-    const job = coverQueue.shift()!;
-    const img = job.li ? job.li.querySelector<HTMLImageElement>(".playlist-cover img") : null;
-    if (job.li && (!img || img.dataset.path !== job.path)) continue;
-
-    const cached = coverCache.get(job.path);
-    if (cached !== undefined) {
-      if (img) showImgWhenReady(img, cached || "");
-      continue;
-    }
-
-    try {
-      const dataUrl = await window.electronAPI.getCoverArt(job.path);
-      coverCache.set(job.path, dataUrl);
-      if (img && img.dataset.path === job.path) {
-        showImgWhenReady(img, dataUrl || "");
-      }
-    } catch {
-      coverCache.set(job.path, null);
-    }
-  }
-  coverDraining = false;
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -387,14 +387,26 @@ let dragStartTop = 0;
 
 let isDraggingEdge = false;
 let edgeScrollDir = 0;
+let edgeScrollTicks = 0;
 let edgeScrollRaf = 0;
+
+/* ── Cover art (Variant C: scroll-stop queue + cache) ──────────
+   Variant A (per-row async on every populate()) was tried first
+   but caused IPC storms: fetches for recycled virtual-scroll rows
+   piled up and delivered results to stale DOM elements, so images
+   never appeared.  Variant C avoids this by loading cover art only
+   once scrolling settles — the queue is stable, and cached results
+   persist on the entry object for instant reuse on re-scroll. */
+let coverArtTimer: ReturnType<typeof setTimeout> | null = null;
+let coverArtGeneration = 0;
+const COVER_ART_DEBOUNCE_MS = 200;
 
 function measureRowHeight(): number {
   const temp = document.createElement("li");
   temp.className = "playlist-item";
   temp.style.visibility = "hidden";
   temp.style.position = "absolute";
-  temp.innerHTML = '<span class="playlist-playing"></span><span class="playlist-cover"><img alt=""><span class="playlist-cover-placeholder">\u266B</span></span><span class="playlist-title"><span class="playlist-title-line">Xg</span><span class="playlist-artist-line">Xg</span></span><span class="playlist-duration">00:00</span>';
+  temp.innerHTML = '<span class="playlist-playing"></span><span class="playlist-cover"><span class="playlist-cover-placeholder">\u266B</span></span><span class="playlist-title"><span class="playlist-title-line">Xg</span><span class="playlist-artist-line">Xg</span></span><span class="playlist-duration">00:00</span>';
   playListEl.appendChild(temp);
   const h = temp.offsetHeight;
   temp.remove();
@@ -420,9 +432,6 @@ function buildRows(): void {
 
     const coverSpan = document.createElement("span");
     coverSpan.className = "playlist-cover";
-    const coverImg = document.createElement("img");
-    coverImg.alt = "";
-    coverSpan.appendChild(coverImg);
     const placeholder = document.createElement("span");
     placeholder.className = "playlist-cover-placeholder";
     placeholder.textContent = "\u266B";
@@ -450,20 +459,8 @@ function buildRows(): void {
   }
 }
 
-const COVER_PRELOAD = 20;
-
-function enqueuePreloadRange(from: number, to: number): void {
-  for (let i = from; i <= to; i++) {
-    if (i < 0 || i >= playlist.length) continue;
-    const path = playlist[i]!.path;
-    if (coverCache.has(path)) continue;
-    coverQueue.push({ path, li: null });
-  }
-}
-
 function populate(): void {
   const total = playlist.length;
-  coverQueue = [];
 
   for (let i = 0; i < rowEls.length; i++) {
     const di = firstIdx + i;
@@ -483,26 +480,80 @@ function populate(): void {
     li.querySelector(".playlist-artist-line")!.textContent = entry.artist;
     li.querySelector(".playlist-duration")!.textContent = formatDuration(entry.duration);
 
-    const img = li.querySelector<HTMLImageElement>(".playlist-cover img")!;
-    resetCoverImg(img);
-
-    const cached = coverCache.get(entry.path);
-    if (cached !== undefined) {
-      showImgWhenReady(img, cached || "");
+    const coverSpan = li.querySelector(".playlist-cover")!;
+    const existingImg = coverSpan.querySelector("img") as HTMLImageElement | null;
+    const placeholder = coverSpan.querySelector(".playlist-cover-placeholder") as HTMLElement | null;
+    const thumb = getThumbnail(entry.path);
+    if (thumb) {
+      if (placeholder) placeholder.style.display = "none";
+      if (existingImg) {
+        existingImg.src = thumb;
+      } else {
+        const img = document.createElement("img");
+        img.alt = "";
+        img.src = thumb;
+        coverSpan.appendChild(img);
+      }
     } else {
-      coverQueue.push({ path: entry.path, li });
+      if (placeholder) placeholder.style.display = "";
+      if (existingImg) existingImg.remove();
     }
   }
 
-  if (coversAllowed()) {
-    enqueuePreloadRange(firstIdx - COVER_PRELOAD, firstIdx - 1);
-    enqueuePreloadRange(firstIdx + rowEls.length, firstIdx + rowEls.length + COVER_PRELOAD - 1);
-  }
-
-  drainCoverQueue();
-
   updatePlaylistPlayingIndicator();
   updateScrollbar();
+  scheduleCoverLoad();
+}
+
+function scheduleCoverLoad(): void {
+  if (coverArtTimer) clearTimeout(coverArtTimer);
+  coverArtTimer = setTimeout(() => {
+    coverArtTimer = null;
+    loadVisibleCoverArt();
+  }, COVER_ART_DEBOUNCE_MS);
+}
+
+function loadVisibleCoverArt(): void {
+  const generation = ++coverArtGeneration;
+  const end = Math.min(firstIdx + visibleCount, playlist.length);
+  const batch: { entry: PlaylistEntry; rowIdx: number }[] = [];
+  for (let i = firstIdx; i < end; i++) {
+    const entry = playlist[i];
+    if (!entry || getThumbnail(entry.path)) continue;
+    batch.push({ entry, rowIdx: i - firstIdx });
+  }
+  if (batch.length === 0) return;
+
+  const CONCURRENCY = 6;
+  let next = 0;
+  function fetchNext(): void {
+    if (next >= batch.length) return;
+    if (generation !== coverArtGeneration) return;
+    const item = batch[next++]!;
+    fetchThumbnail(item.entry.path).then((thumb) => {
+      if (generation !== coverArtGeneration) return;
+      if (thumb) {
+        applyCoverArt(item.rowIdx, thumb);
+      }
+    }).catch(() => {}).finally(fetchNext);
+  }
+  for (let c = 0; c < CONCURRENCY && c < batch.length; c++) fetchNext();
+}
+
+function applyCoverArt(rowIdx: number, dataUrl: string): void {
+  const li = rowEls[rowIdx];
+  if (!li) return;
+  const coverSpan = li.querySelector(".playlist-cover");
+  if (!coverSpan) return;
+  const placeholder = coverSpan.querySelector(".playlist-cover-placeholder") as HTMLElement | null;
+  if (placeholder) placeholder.style.display = "none";
+  let img = coverSpan.querySelector("img") as HTMLImageElement | null;
+  if (!img) {
+    img = document.createElement("img");
+    img.alt = "";
+    coverSpan.appendChild(img);
+  }
+  img.src = dataUrl;
 }
 
 function getTotalHeight(): number {
@@ -592,15 +643,20 @@ function setupDelegation(): void {
     if (!li) return;
     const di = parseInt(li.dataset.index ?? "", 10);
     if (isNaN(di) || di >= playlist.length) return;
-    const entry = playlist[di]!;
-    e.dataTransfer!.setData(TRACK_MIME, JSON.stringify(entry));
-    e.dataTransfer!.setData("application/x-musicpenguin-playlist-index", String(di));
+    /* Grabbed entry always wins; the selection only rides along when it
+       actually contains the grabbed row (multi-entry move) */
+    const indices = selectedIndices.has(di)
+      ? [...selectedIndices].filter((i) => i >= 0 && i < playlist.length).sort((a, b) => a - b)
+      : [di];
+    e.dataTransfer!.setData(TRACK_MIME, JSON.stringify(indices.map((i) => playlist[i])));
+    e.dataTransfer!.setData(PLAYLIST_INDEX_MIME, JSON.stringify(indices));
     e.dataTransfer!.effectAllowed = "move";
   });
 
   /* Drag over / drop on items */
   playListEl.addEventListener("dragover", (e: DragEvent) => {
     if (!e.dataTransfer) return;
+    if (!e.dataTransfer.types.includes(TRACK_MIME)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
     for (const el of playListEl.querySelectorAll(".drag-over")) el.classList.remove("drag-over");
@@ -622,21 +678,42 @@ function setupDelegation(): void {
     stopEdgeScroll();
     for (const el of playListEl.querySelectorAll(".drag-over")) el.classList.remove("drag-over");
 
+    /* Only accept internal drag-and-drop (track data or playlist index).
+       External file drops are not supported. */
+    const srcIdxStr = e.dataTransfer?.getData(PLAYLIST_INDEX_MIME) ?? "";
+    const trackData = e.dataTransfer?.getData(TRACK_MIME) ?? "";
+    if (srcIdxStr === "" && trackData === "") return;
+
     const targetLi = (e.target as HTMLElement).closest<HTMLLIElement>(".playlist-item");
     const targetDi = targetLi ? parseInt(targetLi.dataset.index ?? "", 10) : playlist.length;
-    const after = targetLi ? (e.clientY - targetLi.getBoundingClientRect().top > targetLi.getBoundingClientRect().height / 2) : true;
+    /* Half-test against the VISIBLE portion of the row: a partially
+       scrolled-out row must not report a wrong half (e.g. the first row
+       clipped above the viewport made "insert before first" impossible). */
+    let after = true;
+    if (targetLi) {
+      const liRect = targetLi.getBoundingClientRect();
+      const vpRect = plViewport.getBoundingClientRect();
+      const visTop = Math.max(liRect.top, vpRect.top);
+      const visBottom = Math.min(liRect.bottom, vpRect.bottom);
+      const midY = visBottom > visTop ? (visTop + visBottom) / 2 : (liRect.top + liRect.bottom) / 2;
+      after = e.clientY > midY;
+    }
     const hadPlaying = currentPlaylistIndex !== null;
+    let addedNewTracks = false;
 
-    const srcIdxStr = e.dataTransfer!.getData("application/x-musicpenguin-playlist-index");
     if (srcIdxStr !== "") {
-      const sourcePi = parseInt(srcIdxStr, 10);
-      if (isNaN(sourcePi) || sourcePi === targetDi) return;
-      const moved = playlist.splice(sourcePi, 1)[0]!;
-      let adjustedTarget = targetDi > sourcePi ? targetDi - 1 : targetDi;
-      const insertAt = after ? adjustedTarget + 1 : adjustedTarget;
-      playlist.splice(insertAt, 0, moved);
+      const sources = parseDragIndices(srcIdxStr).filter((i) => i < playlist.length);
+      if (!sources.length) return;
+
+      /* Insertion point in original coordinates (before targetDi, or after it) */
+      const anchor = after ? targetDi + 1 : targetDi;
+      const moved = sources.map((i) => playlist[i]!);
+      /* Remove sources descending so indices stay valid */
+      for (let j = sources.length - 1; j >= 0; j--) playlist.splice(sources[j]!, 1);
+      const insertAt = Math.max(0, Math.min(playlist.length, anchor - sources.filter((i) => i < anchor).length));
+      playlist.splice(insertAt, 0, ...moved);
       selectedIndices.clear();
-      selectedIndices.add(insertAt);
+      for (let j = 0; j < moved.length; j++) selectedIndices.add(insertAt + j);
     } else {
       const raw = e.dataTransfer!.getData(TRACK_MIME);
       if (raw) {
@@ -653,6 +730,7 @@ function setupDelegation(): void {
         }
         selectedIndices.clear();
         selectedIndices.add(insertAt - 1);
+        addedNewTracks = true;
       }
     }
 
@@ -660,6 +738,7 @@ function setupDelegation(): void {
     playlistSortColumn = "";
     sortPlaylist();
     renderPlaylist();
+    if (addedNewTracks) adoptPlayingTrackIntoPlaylist();
     persistState();
   });
 
@@ -734,14 +813,13 @@ function setupDelegation(): void {
 
 function startEdgeScroll(e: DragEvent): void {
   const EDGE = 40;
-  const SPEED = 6;
   const rect = plViewport.getBoundingClientRect();
   if (e.clientY < rect.top + EDGE) {
     isDraggingEdge = true;
-    edgeScrollDir = -SPEED;
+    edgeScrollDir = -1;
   } else if (e.clientY > rect.bottom - EDGE) {
     isDraggingEdge = true;
-    edgeScrollDir = SPEED;
+    edgeScrollDir = 1;
   } else {
     stopEdgeScroll();
     return;
@@ -751,15 +829,24 @@ function startEdgeScroll(e: DragEvent): void {
 
 function tickEdgeScroll(): void {
   if (!isDraggingEdge) return;
-  plViewport.scrollTop += edgeScrollDir;
-  firstIdx = Math.max(0, Math.min(getMaxFirstIdx(), Math.round(plViewport.scrollTop / rowHeight)));
-  populate();
+  /* Virtual scroller: native scrollTop has no range — stepping must go
+     through scrollToIndex/firstIdx. Rows-per-tick ramps up while the
+     pointer stays in the edge zone so long lists can be crossed quickly. */
+  const rowsPerTick = 1 + Math.floor(edgeScrollTicks / 20); // ~0.33s per extra row/frame, cap below
+  const target = Math.max(0, Math.min(getMaxFirstIdx(), firstIdx + edgeScrollDir * Math.min(rowsPerTick, 8)));
+  if (target !== firstIdx) {
+    edgeScrollTicks++;
+    scrollToIndex(target, true);
+  } else {
+    edgeScrollTicks = 0;
+  }
   edgeScrollRaf = requestAnimationFrame(tickEdgeScroll);
 }
 
 function stopEdgeScroll(): void {
   isDraggingEdge = false;
   edgeScrollDir = 0;
+  edgeScrollTicks = 0;
   if (edgeScrollRaf) {
     cancelAnimationFrame(edgeScrollRaf);
     edgeScrollRaf = 0;
@@ -844,35 +931,115 @@ function renderPlaylist(): void {
 
   plViewport.classList.toggle("playlist-empty", playlist.length === 0);
 
-  const hasItems = playlist.length > 0;
-  const canRandomize = playlist.length >= 2;
-  for (const id of ["playlist-play-btn", "randomize-btn", "clear-playlist-btn"]) {
+  const atLeast1 = playlist.length >= 1;
+  const atLeast2 = playlist.length >= 2;
+  for (const id of ["playlist-play-btn", "randomize-btn", "clear-playlist-btn", "save-playlist-btn"]) {
     const btn = document.getElementById(id);
     if (btn) {
-      const enable = id === "randomize-btn" ? canRandomize : hasItems;
+      const enable = id === "randomize-btn" ? atLeast2 : atLeast1;
       btn.classList.toggle("enabled", enable);
     }
   }
+
+  let totalSec = 0;
+  for (const e of playlist) {
+    const n = parseFloat(e.duration);
+    if (!isNaN(n) && n > 0) totalSec += Math.floor(n);
+  }
+  const summary = document.getElementById("playlist-total-time");
+  if (summary) summary.textContent = t("Total time: $1", formatTime(String(totalSec)) || "00:00");
+
+  scheduleCoverLoad();
 }
 
 /* ══════════════════════════════════════════════════════════════════
    initPlaylist
    ══════════════════════════════════════════════════════════════════ */
 
+async function appendToPlaylist(paths: string[]): Promise<void> {
+  if (!playListEl || paths.length === 0) return;
+  const hadPlaying = currentPlaylistIndex !== null;
+  const firstNewIdx = playlist.length;
+  /* If anything was selected before (main list or playlist), leave the
+     selection untouched */
+  const hadAnySelection = selectedIndices.size > 0 || mainListSelectionQuery();
+  const rows = await window.electronAPI.lookupPaths(paths).catch(() => [] as Track[]);
+  const byPath = new Map(rows.map((r: any) => [r.path, r]));
+  for (const p of paths) {
+    playlist.push(makeEntry(p, byPath.get(p)));
+  }
+  if (!hadAnySelection) {
+    /* Select the first newly added item so its details are shown */
+    clearSelection();
+    selectedIndices.add(firstNewIdx);
+    lastClickedIndex = firstNewIdx;
+  }
+  if (hadPlaying) syncPlaylistIndex();
+  playlistSortColumn = "";
+  sortPlaylist();
+  renderPlaylist();
+  adoptPlayingTrackIntoPlaylist();
+  if (!hadAnySelection && playlist[firstNewIdx]) {
+    onSelectCallbacks.forEach((cb) => cb(playlist[firstNewIdx]!.path));
+  }
+  persistState();
+}
+
+export async function importPlaylistPaths(paths: string[]): Promise<void> {
+  if (paths.length === 0) return;
+  const rows = await window.electronAPI.lookupPaths(paths).catch(() => [] as Track[]);
+  const known = new Set(rows.map((r: any) => r.path));
+  const missing = paths.filter((p) => !known.has(p));
+  if (missing.length > 0) {
+    const files = missing.map((p) => ({
+      fullPath: p,
+      name: p.split("/").pop() ?? p,
+      relativePath: p,
+    }));
+    await window.electronAPI.scanSpecificFiles(files);
+  }
+
+  /* Keep the play state untouched: if a playlist track is currently playing,
+     re-anchor it in the new list instead of detaching playback */
+  const hadPlaying = currentPlaylistIndex !== null;
+  const playingPath = hadPlaying ? playlist[currentPlaylistIndex!]?.path ?? null : null;
+
+  await rebuildFromPaths(paths);
+  if (hadPlaying && playingPath !== null) {
+    const idx = playlist.findIndex((e) => e.path === playingPath);
+    if (idx !== -1) {
+      playlist[idx]!._playing = true;
+      currentPlaylistIndex = idx;
+    } else {
+      currentPlaylistIndex = null;
+    }
+  } else {
+    currentPlaylistIndex = null;
+  }
+  selectedIndices.clear();
+  playlistSortColumn = "";
+  sortPlaylist();
+  renderPlaylist();
+  persistState();
+  playlistStateChangeCallbacks.forEach((cb) => cb());
+}
+
 export function initPlaylist(
   onGotoAlbum?: (path: string) => void,
   onGotoFolder?: (path: string) => void,
+  onGotoArtist?: (path: string) => void,
+  onGotoComposer?: (path: string) => void,
 ): void {
   onGotoAlbumPlaylistCb = onGotoAlbum ?? null;
   onGotoFolderPlaylistCb = onGotoFolder ?? null;
-  const shuffleBtn = document.getElementById("shuffle-btn") as HTMLButtonElement;
-  const repeatBtn = document.getElementById("repeat-btn") as HTMLButtonElement;
+  onGotoArtistPlaylistCb = onGotoArtist ?? null;
+  onGotoComposerPlaylistCb = onGotoComposer ?? null;
   const randomizeBtn = document.getElementById("randomize-btn") as HTMLButtonElement;
   const clearPlaylistBtn = document.getElementById("clear-playlist-btn") as HTMLButtonElement;
   playlistPlayBtn = document.getElementById("playlist-play-btn") as HTMLButtonElement;
   playListEl = document.getElementById("playlist-list") as HTMLUListElement;
 
-  if (!shuffleBtn || !repeatBtn || !randomizeBtn || !playListEl || !clearPlaylistBtn || !playlistPlayBtn) return;
+  if (!randomizeBtn || !playListEl || !clearPlaylistBtn || !playlistPlayBtn) return;
 
   /* ── Build virtual scroll DOM ──────────────────────────────── */
   plViewport = document.createElement("div");
@@ -900,22 +1067,14 @@ export function initPlaylist(
   resizeObserver.observe(plViewport);
   window.addEventListener("resize", () => recalc());
 
-  /* ── Start cover art loading only after the playlist is shown ── */
-  const coverObserver = new IntersectionObserver((entries) => {
-    const intersecting = entries.some((e) => e.isIntersecting);
-    coverIntersecting = intersecting;
-    if (coversAllowed()) drainCoverQueue();
-  });
-  coverObserver.observe(plViewport);
-  document.addEventListener("visibilitychange", () => {
-    if (coversAllowed()) drainCoverQueue();
-  });
-
   /* ── Drop on viewport itself (empty area, below items) ─────── */
   plViewport.addEventListener("dragover", (e: DragEvent) => {
-    if (!e.dataTransfer!.types.includes(TRACK_MIME)) return;
+    const dt = e.dataTransfer!;
+    const isInternalMove = dt.types.includes(PLAYLIST_INDEX_MIME);
+    if (!dt.types.includes(TRACK_MIME)) return;
     e.preventDefault();
-    e.dataTransfer!.dropEffect = "copy";
+    dt.dropEffect = isInternalMove ? "move" : "copy";
+    startEdgeScroll(e);
   });
 
   plViewport.addEventListener("drop", async (e: DragEvent) => {
@@ -927,6 +1086,24 @@ export function initPlaylist(
     e.stopPropagation();
     for (const el of plViewport.querySelectorAll(".drag-over")) el.classList.remove("drag-over");
     stopEdgeScroll();
+
+    /* Internal reorder onto empty area = move to end of playlist */
+    const srcIdxStr = e.dataTransfer!.getData(PLAYLIST_INDEX_MIME);
+    if (srcIdxStr !== "") {
+      const sources = parseDragIndices(srcIdxStr).filter((i) => i < playlist.length);
+      if (sources.length > 0) {
+        const hadPlaying = currentPlaylistIndex !== null;
+        const moved = sources.map((i) => playlist[i]!);
+        for (let j = sources.length - 1; j >= 0; j--) playlist.splice(sources[j]!, 1);
+        playlist.push(...moved);
+        selectedIndices.clear();
+        for (let j = playlist.length - moved.length; j < playlist.length; j++) selectedIndices.add(j);
+        if (hadPlaying) syncPlaylistIndex();
+        renderPlaylist();
+        persistState();
+      }
+      return;
+    }
 
     const hadPlaying = currentPlaylistIndex !== null;
     const tracks = JSON.parse(raw) as Array<{ path: string; title?: string; artist?: string }>;
@@ -944,33 +1121,17 @@ export function initPlaylist(
     playlistSortColumn = "";
     sortPlaylist();
     renderPlaylist();
+    adoptPlayingTrackIntoPlaylist();
     persistState();
   });
 
   /* ── Load saved state ─────────────────────────────────────── */
   loadState().then(() => {
-    updateShuffleBtn(shuffleBtn);
-    updateRepeatBtn(repeatBtn);
     sortPlaylist();
     renderPlaylist();
   });
 
   /* ── Button listeners ──────────────────────────────────────── */
-  shuffleBtn.addEventListener("click", async () => {
-    shuffle = !shuffle;
-    updateShuffleBtn(shuffleBtn);
-    await persistState();
-    playlistStateChangeCallbacks.forEach((cb) => cb());
-  });
-
-  repeatBtn.addEventListener("click", async () => {
-    const idx = REPEAT_CYCLE.indexOf(repeat);
-    repeat = REPEAT_CYCLE[(idx + 1) % REPEAT_CYCLE.length]!;
-    updateRepeatBtn(repeatBtn);
-    await persistState();
-    playlistStateChangeCallbacks.forEach((cb) => cb());
-  });
-
   randomizeBtn.addEventListener("click", () => {
     if (playlist.length < 2) return;
     const hadPlaying = currentPlaylistIndex !== null;
@@ -1002,7 +1163,7 @@ export function initPlaylist(
       playFrom(selected[0]!);
     } else {
       const curIdx = playlist.findIndex((e) => e.path === selectedPath);
-      if (shuffle && curIdx !== -1) {
+      if (getShuffle() && curIdx !== -1) {
         playFrom(randomIndexExcluding(curIdx));
       } else {
         playFrom(0);
@@ -1015,13 +1176,17 @@ export function initPlaylist(
 
   document.addEventListener("language-changed", () => {
     updatePlayPauseBtn();
-    updateShuffleBtn(shuffleBtn);
-    updateRepeatBtn(repeatBtn);
     const title = t("Currently playing");
     for (const row of rowEls) {
       const span = row.querySelector<HTMLElement>(".playlist-playing");
       if (span) span.title = title;
     }
+    renderPlaylist();
+  });
+
+  onPlayModeChange(() => {
+    renderPlaylist();
+    playlistStateChangeCallbacks.forEach((cb) => cb());
   });
 
   clearPlaylistBtn.addEventListener("click", () => {
@@ -1047,29 +1212,7 @@ export function initPlaylist(
   loadPlaylistBtn?.addEventListener("click", async () => {
     const res = await window.electronAPI.loadPlaylist();
     if (res.canceled || !res.paths || res.paths.length === 0) return;
-    const paths = res.paths;
-
-    const rows = await window.electronAPI.lookupPaths(paths).catch(() => []);
-    const known = new Set(rows.map((r: any) => r.path));
-    const missing = paths.filter((p) => !known.has(p));
-    if (missing.length > 0) {
-      const files = missing.map((p) => ({
-        fullPath: p,
-        name: p.split("/").pop() ?? p,
-        relativePath: p,
-      }));
-      await window.electronAPI.runIncrementalScan(files);
-    }
-
-    await rebuildFromPaths(paths);
-    clearPlayingFlag();
-    currentPlaylistIndex = null;
-    selectedIndices.clear();
-    playlistSortColumn = "";
-    sortPlaylist();
-    renderPlaylist();
-    persistState();
-    playlistStateChangeCallbacks.forEach((cb) => cb());
+    await importPlaylistPaths(res.paths);
   });
 
   /* ── Context menu on container ─────────────────────────────── */
@@ -1107,18 +1250,24 @@ export function initPlaylist(
     menu.addEventListener("contextmenu", (ce) => ce.preventDefault());
 
     if (targetPath) {
-      const showItem = document.createElement("div");
-      showItem.className = "context-menu-item";
-      showItem.textContent = t("Show in Folder");
-      showItem.addEventListener("click", async () => {
-        closeSortContextMenu();
-        await window.electronAPI.showInExternalFileExplorer(targetPath, false);
-      });
-      menu.appendChild(showItem);
+      /* DLNA rows are stream URLs without a physical file to reveal;
+         in a mixed selection fall back to the first local file. */
+      const pathsToCheck = selPaths.length ? selPaths : [targetPath];
+      const firstLocalPath = pathsToCheck.find((p) => !/^https?:\/\//i.test(p));
+      if (firstLocalPath) {
+        const showItem = document.createElement("div");
+        showItem.className = "context-menu-item";
+        showItem.textContent = t("Show in Folder");
+        showItem.addEventListener("click", async () => {
+          closeSortContextMenu();
+          await window.electronAPI.showInExternalFileExplorer(firstLocalPath, false);
+        });
+        menu.appendChild(showItem);
+      }
 
       const vlcItem = document.createElement("div");
       vlcItem.className = "context-menu-item";
-      vlcItem.textContent = t("Play in VLC");
+      vlcItem.textContent = t("Play in $1", getExternalPlayerDisplayName());
       vlcItem.addEventListener("click", async () => {
         closeSortContextMenu();
         clearSelection();
@@ -1133,7 +1282,8 @@ export function initPlaylist(
           }
         }
         audio.pause();
-        await window.electronAPI.openInVlc(toPlay);
+        const opened = await window.electronAPI.openInExternalPlayer(toPlay, getExternalPlayer());
+        if (opened) noteExternalPlays(toPlay);
       });
       menu.appendChild(vlcItem);
 
@@ -1162,9 +1312,12 @@ export function initPlaylist(
       sep1.className = "playlist-sort-sep";
       menu.appendChild(sep1);
 
+      let hasGotoItems = false;
+
       if (onGotoAlbumPlaylistCb && targetPath) {
         const targetEntry = playlist.find((e) => e.path === targetPath);
         if (targetEntry?.album) {
+          hasGotoItems = true;
           const gotoAlbumItem = document.createElement("div");
           gotoAlbumItem.className = "context-menu-item";
           gotoAlbumItem.textContent = t("Goto Album");
@@ -1176,26 +1329,81 @@ export function initPlaylist(
         }
       }
 
-      if (onGotoFolderPlaylistCb && targetPath) {
+      if (onGotoFolderPlaylistCb && firstLocalPath) {
+        hasGotoItems = true;
         const gotoFolderItem = document.createElement("div");
         gotoFolderItem.className = "context-menu-item";
         gotoFolderItem.textContent = t("Goto Folder");
         gotoFolderItem.addEventListener("click", () => {
           closeSortContextMenu();
-          onGotoFolderPlaylistCb!(targetPath);
+          onGotoFolderPlaylistCb!(firstLocalPath);
         });
         menu.appendChild(gotoFolderItem);
       }
 
-      const sep2 = document.createElement("hr");
-      sep2.className = "playlist-sort-sep";
-      menu.appendChild(sep2);
+      if (onGotoArtistPlaylistCb && targetPath) {
+        const targetEntry = playlist.find((e) => e.path === targetPath);
+        if (targetEntry?.artist) {
+          hasGotoItems = true;
+          const gotoArtistItem = document.createElement("div");
+          gotoArtistItem.className = "context-menu-item";
+          gotoArtistItem.textContent = t("Goto Artist");
+          gotoArtistItem.addEventListener("click", () => {
+            closeSortContextMenu();
+            onGotoArtistPlaylistCb!(targetPath);
+          });
+          menu.appendChild(gotoArtistItem);
+        }
+      }
+
+      if (onGotoComposerPlaylistCb && targetPath) {
+        const targetEntry = playlist.find((e) => e.path === targetPath);
+        if (targetEntry?.composer) {
+          hasGotoItems = true;
+          const gotoComposerItem = document.createElement("div");
+          gotoComposerItem.className = "context-menu-item";
+          gotoComposerItem.textContent = t("Goto Composer");
+          gotoComposerItem.addEventListener("click", () => {
+            closeSortContextMenu();
+            onGotoComposerPlaylistCb!(targetPath);
+          });
+          menu.appendChild(gotoComposerItem);
+        }
+      }
+
+      if (hasGotoItems) {
+        const sep2 = document.createElement("hr");
+        sep2.className = "playlist-sort-sep";
+        menu.appendChild(sep2);
+      }
     }
 
     const heading = document.createElement("div");
     heading.className = "playlist-sort-heading";
     heading.textContent = t("Sort by:");
     menu.appendChild(heading);
+
+    for (const mode of SORTING_MODES) {
+      if (mode.id !== ARTIST_ALBUM_TRACKNO) continue;
+      const item = document.createElement("div");
+      item.className = "context-menu-item playlist-sort-item"
+        + (playlistSortColumn === mode.id ? " active" : "");
+
+      const label = document.createElement("span");
+      label.className = "playlist-sort-label";
+      label.textContent = t(mode.name);
+      item.appendChild(label);
+
+      item.addEventListener("click", () => {
+        playlistSortColumn = mode.id;
+        playlistSortDirection = "asc";
+        sortPlaylist();
+        renderPlaylist();
+        persistState();
+        closeSortContextMenu();
+      });
+      menu.appendChild(item);
+    }
 
     for (const col of SORT_COLUMNS) {
       const item = document.createElement("div");
@@ -1305,3 +1513,21 @@ export function updatePlaylistEntry(update: TagUpdate): void {
   sortPlaylist();
   renderPlaylist();
 }
+
+/* Ratings are edited in the list/details/now-playing UIs and persisted
+   by the main process; keep the playlist's own entries in sync so a
+   playlist sorted by rating stays consistent. */
+document.addEventListener("rating-updated", ((e: CustomEvent) => {
+  const { path, rating } = e.detail;
+  let changed = false;
+  for (const entry of playlist) {
+    if (entry.path === path && entry.rating !== rating) {
+      entry.rating = rating;
+      changed = true;
+    }
+  }
+  if (changed && playlistSortColumn === "rating") {
+    sortPlaylist();
+    renderPlaylist();
+  }
+}) as EventListener);

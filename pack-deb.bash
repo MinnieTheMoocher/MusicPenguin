@@ -21,7 +21,7 @@ git clean -fdx
 
 echo "Packaging ${APP} ${VERSION} ..."
 
-rm -rf ./node_modules
+rm -rf ./node_modules ./*.deb
 npm ci
 node node_modules/electron/install.js
 npm run build
@@ -34,10 +34,10 @@ echo "Assembling ${PKG_NAME}.deb ..."
 # ── /opt/musicpenguin/ ──────────────────────────────────────
 APPDIR="${STAGING}/opt/${APP}"
 mkdir -p "${APPDIR}"
-cp main.js preload.js index.html style.css "${APPDIR}/"
+cp main.js preload.js index.html style.css package.json "${APPDIR}/"
 cp -r dist "${APPDIR}/"
 mkdir -p "${APPDIR}/res"
-cp res/musicpenguin.png "${APPDIR}/res/"
+cp res/musicpenguin256.png "${APPDIR}/res/"
 
 # Copy complete runtime dependency tree
 cp -a node_modules "${APPDIR}/"
@@ -47,22 +47,26 @@ chmod 4755 "${APPDIR}/node_modules/electron/dist/chrome-sandbox"
 # ── /usr/bin/ ───────────────────────────────────────────────
 BINDIR="${STAGING}/usr/bin"
 mkdir -p "${BINDIR}"
-cp pkg/musicpenguin.sh "${BINDIR}/${APP}"
+cp pkg/${APP} "${BINDIR}/${APP}"
 chmod 755 "${BINDIR}/${APP}"
+
+# ── /usr/share/icons/ ───────────────────────────────────────
+ICONS_BASE="${STAGING}/usr/share/icons/hicolor"
+for size in 32 64 128 256; do
+  mkdir -p "${ICONS_BASE}/${size}x${size}/apps"
+  cp "res/${APP}${size}.png" "${ICONS_BASE}/${size}x${size}/apps/${APP}.png"
+done
 
 # ── /usr/share/applications/ ────────────────────────────────
 APPSDIR="${STAGING}/usr/share/applications"
 mkdir -p "${APPSDIR}"
-cp pkg/musicpenguin.desktop "${APPSDIR}/${APP}.desktop"
-
-# ── /usr/share/icons/ ───────────────────────────────────────
-ICONDIR="${STAGING}/usr/share/icons/hicolor/256x256/apps"
-mkdir -p "${ICONDIR}"
-cp res/musicpenguin.png "${ICONDIR}/${APP}.png"
+cp pkg/${APP}.desktop "${APPSDIR}/${APP}.desktop"
 
 # ── DEBIAN/control ──────────────────────────────────────────
 DEBDIR="${STAGING}/DEBIAN"
 mkdir -p "${DEBDIR}"
+cp pkg/postinst "${DEBDIR}/postinst"
+chmod 755 "${DEBDIR}/postinst"
 cat > "${DEBDIR}/control" <<EOF
 Package: ${APP}
 Version: ${VERSION}
@@ -71,7 +75,7 @@ Priority: optional
 Architecture: ${ARCH}
 Depends: libgtk-3-0, libnss3, libxss1, libasound2t64 | libasound2
 Recommends: vlc
-Maintainer: MinnieTheMoocher <MinnieTheMoocher@users.noreply.github.com>
+Maintainer: MusicPenguin@web.de
 Homepage: https://github.com/MinnieTheMoocher/MusicPenguin
 Description: MusicPenguin is a fast local-first music library and player for Linux.
 EOF
@@ -80,13 +84,7 @@ EOF
 chmod 644 "${DEBDIR}/control"
 
 OUTPUT="${PKG_NAME}.deb"
-dpkg-deb --root-owner-group --build "${STAGING}" "${OUTPUT}"
-
-# verify
-test -x "${APPDIR}/node_modules/electron/dist/electron"
-test -f "${APPDIR}/node_modules/electron/dist/chrome-sandbox"
-test -u "${APPDIR}/node_modules/electron/dist/chrome-sandbox"
-test -f "${APPDIR}/node_modules/ieee754/package.json"
+dpkg-deb --root-owner-group --build -Z xz -z 9 "${STAGING}" "${OUTPUT}"
 
 # Cleanup
 rm -rf "${STAGING}"

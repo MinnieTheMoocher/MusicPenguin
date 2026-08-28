@@ -2,6 +2,20 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "clean",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-c",
+        "rm -rf ./dist/ ./node_modules/ ./*.deb"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      },
+      "problemMatcher": []
+    },
+    {
       "label": "build",
       "type": "shell",
       "command": "bash",

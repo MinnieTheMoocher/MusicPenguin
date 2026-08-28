@@ -22,10 +22,11 @@
         <button id="prev-btn" data-i18n-title="Previous Track" title="Previous Track">⏮</button>
         <button id="play-btn" data-i18n-title="Play" title="Play">▶️</button>
         <button id="next-btn" data-i18n-title="Next Track" title="Next Track">⏭</button>
+        <button id="repeat-btn" class="btn-icon" data-i18n-title="Repeat" title="Repeat">🔁</button>
+        <button id="shuffle-btn" class="btn-icon" data-i18n-title="Shuffle" title="Shuffle">🔀</button>
         <span id="current-time" data-i18n-title="Elapsed time of current track" title="Elapsed time of current track">0:00</span>
         <div id="progress-track" data-i18n-title="Progress" title="Progress">
           <div id="progress-fill"></div>
-          <div id="progress-hover-time"></div>
         </div>
         <span id="duration" data-i18n-title="Track length" title="Track length">0:00</span>
         <span id="now-playing-rating" data-i18n-title="Rating" title="Rating"></span>
@@ -42,11 +43,12 @@
           <h2 data-i18n="Groups">Groups</h2>
           <ul id="groups-list"></ul>
         </div>
-        <img id="large-application-logo" src="res/musicpenguin.png" alt="MusicPenguin" data-i18n-title="About MusicPenguin" title="About MusicPenguin" />
+        <hr class="panel-divider" />
+        <img id="large-application-logo" src="res/musicpenguin256.png" alt="MusicPenguin" data-i18n-title="About MusicPenguin" title="About MusicPenguin" />
         <div id="groups-buttons">
           <button id="folders-btn" data-i18n-title="Choose Folders with Audio Files" title="Choose Folders with Audio Files">📁</button>
           <button id="scan-btn" data-i18n-title="Re-Scan Files" title="Re-Scan Files">🏷️</button>
-          <button id="problematic-btn" data-i18n-title="Show Problematic Files" title="Show Problematic Files">⚠️</button>
+          <button id="problematic-btn" hidden data-i18n-title="Show Problematic Files" title="Show Problematic Files">⚠️</button>
           <button id="settings-btn" data-i18n-title="Settings" title="Settings">⚙</button>
         </div>
       </aside>
@@ -131,7 +133,7 @@
         <div id="search-panel">
           <h2 data-i18n="Search">Search</h2>
           <div id="search-bar">
-            <input type="text" id="search-input" data-i18n-placeholder="Search library..." placeholder="Search library..." />
+            <input type="text" id="search-input" data-i18n-placeholder="Search..." placeholder="Search..." />
             <button id="regex-btn" class="btn-icon" data-i18n-title="RegEx Mode" title="RegEx Mode">.*</button>
             <button id="search-btn" class="btn-icon" data-i18n-title="Search" title="Search">🔍</button>
           </div>
@@ -153,8 +155,6 @@
           <h2 data-i18n="Playlist">Playlist</h2>
           <div id="playlist-toolbar">
             <button id="playlist-play-btn" class="btn-icon" data-i18n-title="Play Playlist" title="Play Playlist">▶️</button>
-            <button id="shuffle-btn" class="btn-icon" data-i18n-title="Shuffle" title="Shuffle">🔀</button>
-            <button id="repeat-btn" class="btn-icon" data-i18n-title="Repeat" title="Repeat">🔁</button>
             <button id="randomize-btn" class="btn-icon" data-i18n-title="Randomize Playlist" title="Randomize Playlist">🎲</button>
             <button id="clear-playlist-btn" class="btn-icon" data-i18n-title="Clear Playlist" title="Clear Playlist">🧹</button>
             <button id="save-playlist-btn" class="btn-icon" data-i18n-title="Save Playlist" title="Save Playlist">💾</button>
@@ -163,6 +163,7 @@
           <div id="playlist-container">
             <ul id="playlist-list"></ul>
           </div>
+          <div id="playlist-total-time">Total time: 00:00</div>
         </aside>
       </div>
     </div>
@@ -195,6 +196,39 @@
           </span>
         </label>
 
+        <label class="toggle-row" id="debug-log-row">
+          <span data-i18n="Debug Log">Debug Log</span>
+          <span class="toggle-track">
+            <input type="checkbox" id="debug-log-toggle" />
+            <span class="toggle-thumb"></span>
+          </span>
+        </label>
+
+        <label class="toggle-row">
+          <span data-i18n="External Player">External Player</span>
+          <input type="text" id="external-player-input" spellcheck="false" autocomplete="off" />
+        </label>
+
+        <label class="toggle-row">
+          <span data-i18n="Minimum rating required when playing automatically">Minimum rating required when playing automatically</span>
+          <select id="min-autoplay-rating-select"></select>
+        </label>
+
+        <label class="toggle-row">
+          <span data-i18n="Place main playback bar">Place main playback bar</span>
+          <select id="playback-bar-position-select">
+            <option value="top" data-i18n="Top">Top</option>
+            <option value="bottom" data-i18n="Bottom">Bottom</option>
+          </select>
+        </label>
+
+        <div id="danger-zone">
+          <div class="danger-zone-heading" data-i18n="Danger Zone">Danger Zone</div>
+          <label class="toggle-row" id="empty-db-row">
+            <button id="empty-db-btn" class="btn btn-danger" data-i18n="Empty MusicPenguin Library">Empty MusicPenguin Library</button>
+          </label>
+        </div>
+
         <div style="display:flex;justify-content:flex-end;flex-shrink:0;margin-top:auto;padding-top:1rem">
           <button id="dialog-ok" class="btn btn-primary" data-i18n-title="OK" data-i18n="OK" title="OK">OK</button>
         </div>
@@ -210,10 +244,20 @@
       </div>
       <div class="dialog-body">
         <div class="dialog-section" style="flex:1;display:flex;flex-direction:column">
+          <div class="dialog-section-header">
+            <span data-i18n="File-System Folders" data-i18n-title="Folders on this computer that are scanned for audio files" title="Folders on this computer that are scanned for audio files">File-System Folders</span>
+          </div>
           <div style="display:flex;gap:6px;flex-wrap:wrap">
-            <button id="folder-add-btn" class="btn btn-secondary" data-i18n-title="Add Music Folder" data-i18n="+ Add Folder" title="Add Music Folder">+ Add Folder</button>
+            <button id="folder-add-btn" class="btn btn-secondary" data-i18n-title="Add Audio Folder" data-i18n="+ Add Folder" title="Add Audio Folder">+ Add Folder</button>
           </div>
           <ul id="folder-list"></ul>
+
+          <div id="dlna-section" class="hidden">
+            <div class="dialog-section-header">
+              <span data-i18n="Audio Server(s) in your network (read-only)" data-i18n-title="Audio servers found on this network" title="Audio servers found on this network">Audio Server(s) in your network (read-only)</span>
+            </div>
+            <ul id="dlna-server-list"></ul>
+          </div>
         </div>
 
         <div style="display:flex;justify-content:flex-end;flex-shrink:0;margin-top:1rem">
@@ -230,11 +274,12 @@
         <button id="about-dialog-close" class="dialog-close" data-i18n-title="Close" title="Close">×</button>
       </div>
       <div class="dialog-body about-body">
-        <img id="about-logo" src="res/musicpenguin.png" alt="MusicPenguin" />
+        <img id="about-logo" src="res/musicpenguin256.png" alt="MusicPenguin" />
         <div id="about-app-name">MusicPenguin</div>
-        <div id="about-version">Version 0.0.1</div>
-        <div id="about-by">by MinnieTheMoocher</div>
-        <a id="about-homepage" href="https://github.com/MinnieTheMoocher/MusicPenguin">https://github.com/MinnieTheMoocher/MusicPenguin</a>
+        <div id="about-version"></div>
+        <div id="about-by">by MusicPenguin@web.de</div>
+        <div id="about-bluesky1">BlueSky: <a id="about-bluesky2" href="https://bsky.app/profile/musicpenguin.bsky.social">https://bsky.app/profile/musicpenguin.bsky.social</a></div>
+        <div id="about-github1">GitHub: <a id="about-github2" href="https://github.com/MinnieTheMoocher/MusicPenguin">https://github.com/MinnieTheMoocher/MusicPenguin</a></div>
         <div style="display:flex;justify-content:flex-end;flex-shrink:0;margin-top:auto">
           <button id="about-ok" class="btn btn-primary" data-i18n-title="OK" data-i18n="OK" title="OK">OK</button>
         </div>

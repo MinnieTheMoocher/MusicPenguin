@@ -1,22 +1,13 @@
-import { FolderNode, scanFolders, flattenEnabled, fileCountLabel } from "./scanner.js";
+import { FolderNode, fileCountLabel, saveDlnaServers, loadDlnaServers, loadFolders, runFullScan, subscribeDlnaProgress, subscribeDlnaServerChanges } from "./scanner.js";
+import { DLNA_SERVER } from "./icons.js";
 import { t } from "./i18n/index.js";
+import { debugLog } from "./debug-log.js";
 
 let folders: FolderNode[] = [];
 
-async function loadFolders(): Promise<FolderNode[]> {
-  try {
-    const data = await window.electronAPI.loadSettings();
-    if (data) {
-      return data.folders ?? [];
-    }
-  } catch { /* ignore */ }
-  return [];
-}
-
 async function saveFolders(nodes: FolderNode[]): Promise<void> {
   try {
-    const data = await window.electronAPI.loadSettings();
-    await window.electronAPI.saveSettings({ ...(data || {}), folders: nodes });
+    await window.electronAPI.saveSettings({ folders: nodes });
   } catch { /* ignore */ }
 }
 
@@ -32,40 +23,42 @@ export async function initFoldersDialog(
   const closeBtn = document.getElementById("folders-dialog-close")!;
   const addBtn = document.getElementById("folder-add-btn")!;
   const folderList = document.getElementById("folder-list")!;
+  const dlnaList = document.getElementById("dlna-server-list") as HTMLUListElement;
+  const dlnaSection = document.getElementById("dlna-section") as HTMLElement;
   const scanResult = document.getElementById("status-text")!;
 
   folders = await loadFolders();
+  let dlnaServers: DlnaServerEntry[] = await loadDlnaServers();
   let foldersChanged = false;
 
-  async function runFullScan(): Promise<void> {
-    const flat = flattenEnabled(folders);
-    if (flat.length === 0) {
-      scanResult.textContent = t("No enabled folders to scan. Check some folders first.");
-      return;
-    }
+  /* Live progress while a DLNA server is being enumerated (the dialog
+     is usually closed already by then, so this feeds the status bar).
+     Only tracks DISCOVERED SO FAR are shown — the total is unknowable
+     while enumerating, so it is never implied. */
+  subscribeDlnaProgress((found, name) => {
+    scanResult.textContent = t("Scanning audio server $1: $2 $3", name ?? "", found, fileCountLabel(found));
+  });
 
+  async function runDialogScan(): Promise<void> {
     scanResult.textContent = t("Scanning...");
 
+    const result = await runFullScan({
+      folders,
+      dlnaServers,
+      onProgress: (msg) => { scanResult.textContent = msg; },
+    });
+
     try {
-      const { files } = await scanFolders(folders, (msg) => {
-        scanResult.textContent = msg;
-      });
-
-      scanResult.textContent = t("Found $1 $2. Reading tags...", files.length, fileCountLabel(files.length));
-
-      const result = await window.electronAPI.runIncrementalScan(files);
-
-      onScanComplete(files.length);
-
-      const parts = [
-        t("Total files: $1.", result.total),
-        result.errors > 0 ? " " + t("Errors: $1.", result.errors) : "",
-        result.removed > 0 ? " " + t("Removed $1 missing $2.", result.removed, fileCountLabel(result.removed)) : "",
-      ];
-      scanResult.textContent = parts.filter(Boolean).join(" ");
+      await onScanComplete(0);
     } catch (err) {
-      scanResult.textContent = t("Scan failed: $1", err instanceof Error ? err.message : "unknown error");
+      debugLog("[scan] onScanComplete failed:", err instanceof Error ? err.message : String(err));
     }
+
+    const parts: string[] = [];
+    parts.push(t("$1 tracks in library.", result.total));
+    if (result.removed > 0) parts.push(t("$1 removed.", result.removed));
+    if (result.errors > 0) parts.push(t("$1 errors.", result.errors));
+    scanResult.textContent = parts.join(" ");
   }
 
   function persist(): void {
@@ -249,6 +242,80 @@ export async function initFoldersDialog(
     foldersChanged = true;
   });
 
+  // ----------------------------------------------------------------
+  // DLNA servers (SSDP discovery + per-server enable checkboxes)
+  // ----------------------------------------------------------------
+
+  function hostFromUrl(urlStr: string): string {
+    try {
+      return new URL(urlStr).host;
+    } catch {
+      return "";
+    }
+  }
+
+  function buildDlnaItem(entry: DlnaServerEntry): HTMLLIElement {
+    const li = document.createElement("li");
+    li.className = "dlna-item";
+
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.className = "folder-check";
+    cb.checked = entry.enabled;
+    cb.title = t("Enabled");
+    cb.addEventListener("change", () => {
+      entry.enabled = cb.checked;
+      void saveDlnaServers(dlnaServers);
+      foldersChanged = true;
+    });
+
+    const iconSpan = document.createElement("span");
+    iconSpan.className = "dlna-icon";
+    const img = document.createElement("img");
+    /* Icon persisted with the entry (captured during discovery), so it
+       renders immediately even before the next search finishes. */
+    img.src = entry["icon-url"] || DLNA_SERVER;
+    img.alt = "";
+    img.draggable = false;
+    iconSpan.appendChild(img);
+
+    /* Friendly server name only — no IP/port in the UI. Falls back to
+       the URL-derived host only when the server announced no name. */
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "dlna-name";
+    nameSpan.textContent = entry.name || hostFromUrl(entry["control-url"]) || entry["control-url"];
+    nameSpan.title = entry.name;
+
+    li.appendChild(cb);
+    li.appendChild(iconSpan);
+    li.appendChild(nameSpan);
+    return li;
+  }
+
+  function renderDlnaList(): void {
+    /* The whole DLNA section stays hidden until at least one server is
+       known — discovered by the background search or persisted from an
+       earlier session — so users without such servers are never
+       bothered by it. */
+    dlnaSection.classList.toggle("hidden", dlnaServers.length === 0);
+    const fragment = document.createDocumentFragment();
+    for (const entry of dlnaServers) {
+      fragment.appendChild(buildDlnaItem(entry));
+    }
+    dlnaList.replaceChildren(fragment);
+  }
+
+  /* Discovery lives in the main process: it searches in the background
+     at app start, persists what it found and pushes here. The dialog
+     only renders the persisted list and follows those updates while
+     open — it never searches itself. */
+  subscribeDlnaServerChanges(() => {
+    void loadDlnaServers().then((servers) => {
+      dlnaServers = servers;
+      renderDlnaList();
+    });
+  });
+
   folderList.addEventListener("keydown", (e) => {
     if (e.key !== "Delete") return;
     const sel = folderList.querySelector(".folder-item.selected") as HTMLLIElement | null;
@@ -264,17 +331,19 @@ export async function initFoldersDialog(
   });
 
   renderFolderList();
+  renderDlnaList();
 
   btn.addEventListener("click", () => {
     foldersChanged = false;
     overlay.classList.remove("hidden");
     window.electronAPI.stopTagRead();
+    renderDlnaList();
   });
 
-  function close(): void {
+  async function close(): Promise<void> {
     overlay.classList.add("hidden");
     if (foldersChanged) {
-      runFullScan();
+      runDialogScan();
     } else {
       window.electronAPI.startTagRead();
     }
@@ -285,19 +354,6 @@ export async function initFoldersDialog(
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !overlay.classList.contains("hidden")) close();
   });
-}
-
-export async function startupInit(onScanComplete: (count: number) => void): Promise<void> {
-  const scanResult = document.getElementById("status-text")!;
-  if (folders.length === 0) {
-    scanResult.textContent = t("No folders configured.");
-    return;
-  }
-  const existing = await window.electronAPI.loadFiles();
-  if (existing && existing.length > 0) {
-    onScanComplete(existing.length);
-    await window.electronAPI.startTagRead();
-  }
 }
 
 function folderCaption(path: string): string {

@@ -1,5 +1,6 @@
 export enum FILE_PROBE_ERROR {
   WAV_WRAPPED_MP3 = 1,
+  MPEG_LAYER_II = 2,
 }
 
 function bytesToString(data: Uint8Array, i: number, count: number): string {
@@ -54,6 +55,30 @@ function checkWavWrappedMp3(data: Uint8Array): boolean {
 }
 
 /**
+ * Detects MPEG-1 Layer II audio.  Chromium's <audio> element often lacks
+ * a Layer II decoder even though .mp3 files can legally contain Layer II
+ * frames.  Such files play fine in VLC/ffplay but silently fail in the
+ * built-in player.
+ */
+function checkMpegLayerII(data: Uint8Array): boolean {
+  let pos = 0;
+  if (data.length >= 3 && bytesToString(data, 0, 3) === "ID3") {
+    if (data.length < 10) return false;
+    pos = 10 + syncsafe(data, 6);
+  }
+  /* Scan up to 64 KB past the tag for the first MPEG sync word. */
+  const limit = Math.min(pos + 65536, data.length - 4);
+  for (; pos < limit; pos++) {
+    if (data[pos] === 0xFF && ((data[pos + 1] ?? 0) & 0xE0) === 0xE0) {
+      const version = ((data[pos + 1] ?? 0) >> 3) & 0x3;  /* 11 = MPEG-1 */
+      const layer   = ((data[pos + 1] ?? 0) >> 1) & 0x3;  /* 10 = Layer II */
+      return version === 3 && layer === 2;
+    }
+  }
+  return false;
+}
+
+/**
  * Inspects an in-memory file for known structural defects. New checks can be
  * added here as more error types are discovered.
  */
@@ -62,5 +87,38 @@ export function probeFileForErrors(data: Uint8Array): FILE_PROBE_ERROR[] {
   if (checkWavWrappedMp3(data)) {
     errors.push(FILE_PROBE_ERROR.WAV_WRAPPED_MP3);
   }
+  if (checkMpegLayerII(data)) {
+    errors.push(FILE_PROBE_ERROR.MPEG_LAYER_II);
+  }
   return errors;
+}
+
+/**
+ * Extracts the raw MP3 stream from a WAV-wrapped MP3 file.  Returns the
+ * byte range of the `data` chunk payload (the actual MPEG frames), or null
+ * if the structure is unexpected.
+ */
+export function extractMp3FromWavMp3(data: Uint8Array): Uint8Array | null {
+  let pos = 0;
+  // Skip any leading ID3 tag so we can reach the RIFF header.
+  if (bytesToString(data, 0, 3) === "ID3") {
+    if (data.length < 10) return null;
+    pos = 10 + syncsafe(data, 6);
+  }
+  if (bytesToString(data, pos, 4) !== "RIFF") return null;
+  if (bytesToString(data, pos + 8, 4) !== "WAVE") return null;
+
+  let q = pos + 12;
+  for (let guard = 0; guard < 30; guard++) {
+    if (q + 8 > data.length) return null;
+    const cid = bytesToString(data, q, 4);
+    const csize = readU32le(data, q + 4);
+    if (cid === "data") {
+      const start = q + 8;
+      const end = Math.min(start + csize, data.length);
+      return data.slice(start, end);
+    }
+    q += 8 + csize + (csize & 1);
+  }
+  return null;
 }

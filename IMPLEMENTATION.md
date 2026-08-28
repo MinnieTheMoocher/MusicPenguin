@@ -25,7 +25,7 @@ npm run watch           # typecheck once, then rebuild renderer bundle on file c
 | style.css              | Full stylesheet, dark/light themes
 | dist/bundle.js         | Bundled renderer (src/index.ts, ESM)
 | src/main-process/      | Main-process TypeScript source files
-| src/i18n/              | Localization module (`ITranslate` contract, `en-us`/`de-de`/`fr-fr` dictionaries, `t()` lookup)
+| src/i18n/              | Localization module (`ITranslate` contract, `en-us`/`de-de`/`fr-fr`/`es-es` dictionaries, `t()` lookup)
 | src/                   | Renderer TypeScript source files
 
 **Key point**: `main.js` and `preload.js` are plain CommonJS, never transpiled. `src/` and
@@ -45,6 +45,7 @@ no type declarations, its type is provided by the ambient `declare module "sql.j
 |----------------------------------------------------|--------
 | ~/.config/musicpenguin/musicpenguin-settings.json  | persisted user preferences
 | ~/.config/musicpenguin/musicpenguin-library.sqlite | SQLite database storing the known tags of all known files
+| ~/.config/musicpenguin.log                         | debug log (only when enabled in Settings)
 | ~/.cache/musicpenguin/                             | Electron/Chromium cache
 
 ## Supported Media Formats
@@ -60,7 +61,8 @@ Duration is always verified via `ffprobe` as a fallback when `music-metadata` re
 
 Built-in playback via `<audio>` handles: `.mp3`, `.aac`, `.m4a`, `.mp4`, `.m4v`, `.ogg`, `.opus`, `.oga`, `.webm`, `.wav`, `.flac`.
 Other formats (video files, `.aif`/`.aiff`/`.au`, `.asf`/`.wma`/`.wmv`) can be played
-via an external player (VLC integration available through the context menu).
+via an external player (configurable in settings, default `vlc`, available through the
+context menu and as playback fallback).
 
 **`~/.config/musicpenguin/`** — our own persistence directory. Contains exactly two files:
 `musicpenguin-settings.json` (preferences) and `musicpenguin-library.sqlite` (the music library). Created on first launch
@@ -75,16 +77,39 @@ deleted (caches will be rebuilt). Set via `app.setPath("userData", ...)` at the 
 
 ## UI Layout
 
+The main playback ("Now Playing") bar can sit at the top (default) or at the bottom,
+directly above the status bar — configured via the **Place main playback bar** setting
+in the settings dialog (`playback-bar-position` in musicpenguin-settings.json).
+
+### Variant 1: playback bar at the TOP (default)
+
 ```text
 ┌───────────────────────────────────────────────────────────┐
-│  Now Playing (title row + controls row)                   │
+│  Now Playing                                              │
+│                                                           │
 ├────────┬────────────────────────┬─────────────────────────┤
-│ Groups │  List View (table)     │  Search (bar + tags)    │
+│ Groups │  List View (table)     │  Search                 │
 │ Panel  │                        ├─────────────────────────┤
 │        ├────────────────────────┤  Playlist               │
-│        │  Detail Panel          │  (drag-drop, shuffle,   │
-│        │  (form + cover art)    │   repeat, randomize)    │
+│        │  Details Panel         │                         │
+│        │                        │                         │
 ├────────┴────────────────────────┴─────────────────────────┤
+│  Status Bar                                               │
+└───────────────────────────────────────────────────────────┘
+```
+
+### Variant 2: playback bar at the BOTTOM
+
+```text
+┌────────┬────────────────────────┬─────────────────────────┐
+│ Groups │  List View (table)     │  Search                 │
+│ Panel  │                        ├─────────────────────────┤
+│        ├────────────────────────┤  Playlist               │
+│        │  Details Panel         │                         │
+│        │                        │                         │
+├────────┴────────────────────────┴─────────────────────────┤
+│  Now Playing                                              │
+├───────────────────────────────────────────────────────────┤
 │  Status Bar                                               │
 └───────────────────────────────────────────────────────────┘
 ```
@@ -95,6 +120,14 @@ and cross-handle knobs at both intersections (left: groups×list, right: playlis
 The bottom of the groups panel has four icon buttons:
 **Folders** (opens the folder manager), **Scan** (re-scans all folders), **Problematic** (lists
 files with tag errors), and **Settings** (dark mode toggle).
+
+The logo and bottom button row are fixed in place: the group list lives in `#groups-container`,
+which is `flex: 1` with `min-height: 0` and `overflow-y: auto`, so when the groups outgrow the
+panel they scroll internally instead of pushing the logo/buttons down. The panel's right padding
+is removed so the container's vertical scrollbar sits flush at the panel's right edge; the right
+spacing is applied as internal `padding-right` on the container, logo, and button row. An
+`<hr class="panel-divider">` element separates the fixed bottom section from the scrolling group
+list — the same class used between the search and playlist sections on the right panel.
 
 ## Database
 
@@ -118,16 +151,59 @@ CREATE TABLE files (
   conductor        TEXT DEFAULT '',     -- tag: conductor
   comment          TEXT DEFAULT '',     -- tag: comment
   rating           INTEGER DEFAULT 0,   -- tag: rating (0-255)
-  duration         REAL DEFAULT 0,      -- duration in seconds
+  duration         REAL,                -- duration in seconds; NULL = unknown
   playcount        INTEGER DEFAULT 0,   -- number of times played
   bpm              INTEGER DEFAULT 0,   -- tag: beats per minute
+  dlna             INTEGER DEFAULT 0,   -- 1 if track comes from a DLNA server
   tags_scanned_at  TEXT,                -- UTC ISO timestamp when tag reading was attempted
   tags_error       INTEGER DEFAULT 0    -- 1 if tag reading failed
 );
 ```
 
-Schema version tracked via `PRAGMA user_version`. If the DB file doesn't exist at
-startup, it's created from scratch.
+Schema version tracked via `PRAGMA user_version` (`DB_VERSION` in database.ts):
+versions `<= 1` mean the layout released with app version 0.0.1, version `2`
+adds DLNA support. Version `3` redefines duration semantics: `0` means
+"genuinely zero-length", while an UNKNOWN duration is stored as `NULL` —
+the migration converts legacy `0` rows to `NULL`. If the DB file doesn't exist at startup, it's created from
+scratch, complete with all columns. Released 0.0.1 databases already contain
+everything except `dlna`, so that flag is the single `ALTER TABLE ... ADD COLUMN`
+migration (best-effort, ignored when it already exists).
+
+Duration determination happens in three layers, all persisting to this table:
+1. tag/attribute metadata (music-metadata for files, DIDL-Lite `res@duration`
+   for DLNA items). Servers that announce nothing (e.g. MinimServer omits
+   `res@duration` for some `.m4a` files) store NULL, never 0.
+2. an ffprobe pass (`fixupMissingDurations` in dlna.ts, run ONLY as a
+   fixup after a scanning workflow — incremental file scan, DLNA scan — never at app start;
+   3 probes in parallel, 30 s timeout each, aborted after 5 consecutive failures)
+   over every row with `duration IS NULL`.
+3. whatever still plays with a NULL duration learns it from the renderer's
+   `<audio>` element on `loadedmetadata` and persists it via `db:fillDuration`
+   (`fillMissingDuration()` only fills NULL gaps — known values are never
+   overwritten). Learned durations are pushed to the UI via the
+   `library:durations-fixed` channel / a `track-duration-known` DOM event.
+
+Rating ownership: `rating = 0` means UNRATED. This means that a user rating has not yet occurred
+or is unwanted. A later tag re-scanning that delivers a rating !=0 is therefore ALLOWED to overwrite
+the value 0 in the sqlite database.
+
+For DLNA tracks (`dlna = 1`) both `path` and `filename` store the stream URL of the
+item (`http://...`), metadata comes from the DIDL-Lite fragment of the Browse response,
+and `tags_scanned_at` is stamped immediately so the background tag reader never tries
+to parse a remote URL. DLNA rows are excluded from the filesystem sweep in
+`runIncrementalScan` (`WHERE dlna = 0`) and are managed exclusively by `dlna.ts`.
+
+Stream URLs of newly discovered tracks are persisted under the server's **DNS name**
+instead of its raw IP when one can be verified: at scan start — before any track is
+read — every enabled server's control-URL IP literal is reverse-resolved in parallel
+(PTR records + getnameinfo, 2.5 s timeouts) and a name is accepted only if a forward
+lookup points back at the same IP; when several names resolve, the SHORTEST one wins —
+names announced as "<name>.fritz.box" by FRITZ!Box routers are also tried WITHOUT that
+suffix, and the short form is used when it resolves to the same address.
+Enumeration then rewrites track/art URLs before dedup/storage/progress see them, so
+discovered tracks land in the DB under DNS-name URLs right away. Rows already stored
+are never rewritten: unresolvable hosts keep raw IP URLs, and existing rows stay as
+they are.
 
 DB is saved to disk via `saveDb()` which calls `db.export()` → `fs.writeFileSync`. Saved after every
 batch during tag reading, after storeFiles, after runIncrementalScan, after clearDatabase, and once at startup.
@@ -135,16 +211,64 @@ batch during tag reading, after storeFiles, after runIncrementalScan, after clea
 Cover art is NOT stored in the DB. It is read on-the-fly by `db:getCoverArt` — first from embedded
 pictures via `music-metadata`, then falling back to the first filename matching
 `^(folder|cover|front)\.(jpg|jpeg|png)$` next to the audio file (JPEG/PNG identified by magic bytes).
+DLNA rows are the exception: their `track_art_url` column holds every `upnp:albumArtURI`
+the item announced (newline-separated; servers list thumbnail/full-size variants
+unlabelled). On demand all candidates are fetched over HTTP in parallel and the largest
+image wins — chosen by decoded pixel dimensions (JPEG/PNG/GIF header parse), byte length
+as tiebreaker. The winning URI is written back to the column, replacing all others, so
+every later lookup needs only a single request. Relative URIs are resolved against the
+stream URL; magic bytes win over declared content types when converting to a data URL.
+
+`getCoverArt(filePath, maxSize?)` accepts an optional `maxSize` parameter (pixels). When
+provided, the main process uses Electron's `nativeImage` to resize the image before
+returning a data URL — useful for small UI elements (playlist rows, group thumbnails)
+where the full-resolution image is wasteful. `getCoverArtGroups()` always returns full
+resolution (used by theater mode).
+
+## Thumbnail Cache
+
+`src/thumbnail-cache.ts` is an application-wide singleton (`Map<string, string>`) that
+caches cover art data URLs keyed by file path. Both the playlist and groups panel share
+this cache via `fetchThumbnail(filePath)`, which calls `getCoverArt` with `maxSize: 32`
+on a cache miss and stores the result. `getThumbnail(filePath)` provides synchronous
+cache lookup. The 32×32 px thumbnails are ~1–2 KB data URLs vs ~300 KB for the originals.
+`TreeNode.thumbnail` and `PlaylistEntry` use this cache instead of fetching cover art
+independently — the same file appearing in both playlist and groups triggers only one
+IPC round-trip.
 
 ## Settings
 
-Stored at `~/.config/musicpenguin/musicpenguin-settings.json`. JSON file with all user preferences:
+Stored at `~/.config/musicpenguin/musicpenguin-settings.json`. JSON file with all user preferences.
+
+**Naming policy (mandatory)**: every settings key — at every nesting level — MUST be
+`lowercase-with-dashes` (kebab-case). CamelCase (`dbPath`) and under_score (`db_path`)
+are FORBIDDEN. This applies to top-level keys as well as fields inside nested objects
+(`now-playing`, `window-state`, entries of the `folders` / `dlna-servers` arrays, the
+ids inside `search-tag-columns`, ...). Existing keys all follow this rule; do not
+introduce new ones that violate it.
+
+**Write serialization (mandatory)**: all settings writes in the main process — the
+`settings:save` / `settings:saveSync` IPC handlers, `now-playing:save`, `saveWindowState`,
+`setPlaylistFolder`, `setPlaylistFile`, the background DLNA persistence, and the
+`db:moveFile` now-playing rewrite — go through a single promise-based mutex
+(`runWithSettingsLock`) that wraps a fresh read-modify-write (`readSettingsFile` +
+`mutateSettings`). This guarantees no two readers-then-writers can interleave and
+clobber each other's keys (this previously lost left-panel `group-items` when a
+concurrent `saveUIState` wrote back a stale full object).
+
+**Partial-write convention (mandatory)**: renderer save helpers must pass ONLY the keys
+they own to `saveSettings` — never a spread of a previously `loadSettings()`-ed object
+(`...(data || {})`). The main process merges the partial into a fresh read under the
+lock, so a stale read can never overwrite another component's keys (e.g.
+`group-items`). To remove a key, send it with value `undefined` (JSON drops it on
+write).
 
 ```json
 {
   "theme": "light" | "dark",
-  "language": "en-us" | "de-de" | "fr-fr",
-  "folders": [{ "caption": "Music", "path": "/home/..." }, ...],
+  "language": "en-us" | "de-de" | "fr-fr" | "es-es",
+  "folders": [{ "caption": "Music", "path": "/home/Music/..." }, ...],
+  "dlna-servers": [{ "name": "My NAS", "control-url": "http://nas:8200/ctl/CDS", "description-url": "http://nas:8200/desc/device.xml", "icon-url": "data:image/png;base64,...", "enabled": true }, ...],
   "volume": 0.8,
   "muted": false,
   "now-playing": { "path": "/path/to/file.mp3", "current-time": 42.5 },
@@ -158,17 +282,21 @@ Stored at `~/.config/musicpenguin/musicpenguin-settings.json`. JSON file with al
   "shuffle": false,
   "repeat": "off" | "one" | "all",
   "playlist": ["/path/to/song.mp3", ...],
+  "playlist-folder": "/home/user/Music",
+  "playlist-file": "/home/user/Music/playlist.m3u",
   "search-query": "",
   "search-regex": false,
   "search-tag-columns": { "search-tag-title": true, ... },
   "search-urls": ["https://www.discogs.com/search?...&title=${title}&artist=${artist}", ...],
   "browser": "firefox",
   "selected-group-id": "grp-allfiles",
+  "group-items": [{ "kind": "album", "value": "..." }, ...],
   "list-scroll-top": 0,
   "playlist-sort-column": "",
   "playlist-sort-direction": "asc",
   "hidden-columns": [],
-  "db-path": "/custom/path/to/musicpenguin-library.sqlite"
+  "db-path": "/custom/path/to/musicpenguin-library.sqlite",
+  "debug-log": false
 }
 ```
 
@@ -186,51 +314,64 @@ Stored at `~/.config/musicpenguin/musicpenguin-settings.json`. JSON file with al
 | `fs:readFile`                      | invoke    | Read a file's full contents as `Uint8Array` if its size is ≤ 20 MB, else `null`
 | `db:loadFiles`                     | invoke    | SELECT rows from `files` (tag + playback columns, omits `tags_scanned_at` and `tags_error`)
 | `db:storeFiles`                    | invoke    | INSERT OR IGNORE file paths (in a transaction)
-| `db:runIncrementalScan`            | invoke    | Stop tag reader, INSERT OR IGNORE files, re-scan tags, DELETE missing files, return `{ added, removed, total, errors }`
+| `db:runIncrementalScan`            | invoke    | Stop tag reader, INSERT OR IGNORE files, re-scan tags, DELETE missing files, return `{ added, removed, total, errors }`. `removed` is computed as `countBefore - countAfter` (accurate for all deletions). Optional `allowedPaths` parameter prunes non-DLNA entries whose paths don't reside under any of the given prefixes.
+| `dlna:discover`                    | invoke    | SSDP M-SEARCH over UDP multicast (239.255.255.250:1900, several targeted probes); fetches each respondent's device description, resolves the ContentDirectory control URL and the best icon (as data URL); returns `{ name, location, controlUrl, icon }[]` — media renderers and devices without a ContentDirectory are filtered out
+| `dlna:scan`                        | invoke    | Takes a list of DLNA servers (`{ name, control-url, description-url }`, from the folders dialog selection) instead of a single URL; enumerates every server (recursive ContentDirectory Browse), merges the tracks into the DB (`path`/`filename` = stream URL, `dlna` = 1, metadata from DIDL-Lite), DELETEs stale rows; empty list clears all DLNA rows; returns `{ added, removed, total, errors }`. Invoked by `runFullScan()` in `src/scanner.ts` after filesystem scans completed.
+| `dlna:progress`                    | push      | Sent during DLNA enumeration `{ found, name, added }` — audio items discovered so far plus the server being read; `added` carries row snapshots of the latest batch so the renderer can grow the main list live; an immediate `{ found: 0, name }` event fires when each server starts
 | `db:searchFiles`                   | invoke    | SELECT with LIKE or regex across specified columns
 | `db:lookupPaths`                   | invoke    | SELECT rows matching given paths
 | `db:startTagRead`                  | invoke    | Start/refill the tag reader queue (no-op if already running)
 | `db:stopTagRead`                   | invoke    | Stop the tag reader and wait for it to finish
 | `db:prioritizeFiles`               | invoke    | Prepend paths to the queue (only unscanned ones pass filter)
-| `db:rescanFiles`                   | invoke    | Re-queue files for tag re-reading (clears tags_scanned_at, re-prioritizes)
-| `db:getCoverArt`                   | invoke    | Read cover from embedded metadata or folder image → data URL
+| `db:rescanFiles`                   | invoke    | Re-queue files for tag re-reading (clears tags_scanned_at, re-prioritizes); http(s) stream URLs are ignored; `onlyIfModified` restricts the re-read to files whose mtime moved past their last scan
+| `db:getCoverArt`                   | invoke    | Local files: read cover from embedded metadata or folder image → data URL. Optional `maxSize` param resizes via `nativeImage` before returning. DLNA rows (http(s) path): GET the stored `track_art_url` from the server → data URL
+| `db:getCoverArtGroups`             | invoke    | Track's cover art in 3 disjunct groups (front / rearCovers / extraImages) → data URLs; DLNA rows return the fetched art as `front` only
 | `db:getProblematicFiles`           | invoke    | List files with `tags_error = 1`, write to `/tmp/musicpenguin_problematic_files.txt`, attempt to open in text editor (xdg-open → code → codium → desktop-specific fallback: kate on KDE, gedit on GNOME)
-| `db:clearDatabase`                 | invoke    | Stop tag reader, DELETE all rows, save DB
+| `db:clearDatabase`                 | invoke    | Stop tag reader, DELETE all rows, save DB, then emit `library:changed` so the renderer reloads the empty library
 | `db:deleteFiles`                   | invoke    | DELETE rows for given paths from the database
 | `db:deleteFilesFromDisk`           | invoke    | DELETE rows for given paths and also remove the files from disk
 | `db:setRating`                     | invoke    | SET rating for a given file path
+| `db:fillDuration`                  | invoke    | Layer-3 duration gap filler: persist a duration learned at play time from the `<audio>` element; only fills `duration IS NULL` gaps, resolves whether the DB changed
 | `db:moveFile`                      | invoke    | Rename file on disk and UPDATE path/filename in DB
 | `db:incrementPlaycount`            | invoke    | Increment play count for a file, return new count
 | `shell:showInExternalFileExplorer` | invoke    | Open system file manager and select the given file (xdg-open → dolphin → nautilus)
 | `shell:openExternal`               | invoke    | Open URL in configured browser (default: firefox)
-| `shell:openInVlc`                  | invoke    | Open file(s) in VLC
-| `shell:isVlcAvailable`             | invoke    | Return whether VLC is installed
+| `shell:openInExternalPlayer`       | invoke    | Open file(s) in the configured external player (default `vlc`); counts one play per file
+| `shell:isExternalPlayerAvailable`  | invoke    | Return whether the configured external player command exists
+| `shell:checkCommand`               | invoke    | Return whether a command name/path is executable (`command -v`)
 | `app:getVersion`                   | invoke    | Return app version string
 | `app:getPlayableExtensions`        | invoke    | Return list of built-in playable file extensions
-| `now-playing:save`                 | sync      | Save `now-playing`, `search-query`, `volume`, `muted` (called on beforeunload)
-| `tags:updated`                     | push      | Sent after each file's tags are read (all tag fields + tags_error)
+| `now-playing:save`                 | sync      | Save `now-playing`, `search-query`, `volume`, `muted` (called on beforeunload). Shuffle/repeat are saved separately via `settings:save` on toggle.
+| `tags:updated`                     | push      | No longer sent during scanning. Single `library:changed` refreshes UI after scan completes
 | `tags:scanning`                    | push      | Sent before each file is read `{ path, scanned, total }`, plus `{ path: null }` on completion
+| `media-key`                        | push      | Sent from main process to renderer when a media key is pressed (MPRIS, globalShortcut, or before-input-event). Payload: `"play-pause"`, `"play"`, `"pause"`, `"stop"`, `"next"`, or `"previous"`
+| `library:durations-fixed`          | push      | Sent after the ffprobe duration fixup pass learned durations for rows stored with NULL (`{ rows }` carries full track snapshots); renderer merges them into its models
+| `mpris:updateState`                | send      | Sent from renderer to main process to update MPRIS properties (PlaybackStatus, Metadata, Position, Volume, CanGoNext, CanGoPrevious)
+| `debug:log`                        | invoke    | Append a line to `~/.config/musicpenguin.log`
 
 ## Tag Reader (Background Queue)
 
 The tag reader lives in `src/main-process/tag-reader.ts`. It maintains a `queue` array (max
-`TAG_BATCH_SIZE` = 100 paths) and parses files concurrently using `NUM_TAG_READER_THREADS` (= 4)
+`TAG_BATCH_SIZE` = 20 paths) and parses files concurrently using `NUM_TAG_READER_THREADS` (= 4)
 workers per batch. The loop:
 
 1. **Drain** — parse files concurrently via `parseFileTags()` (calls `music-metadata` with
-   30s timeout, then falls back to `ffprobe` for duration if still 0), bind params, `UPDATE` row,
-   `webContents.send("tags:updated", ...)`.
-2. **Flush** — `saveDb()` + `VACUUM` after the queue is fully drained (in the `finally` block).
-3. **Refill** — `refillQueue()` pulls up to 100 unscanned rows
+   30s timeout, then falls back to `ffprobe` for duration if still 0), bind params, `UPDATE` row.
+   No per-file UI updates are pushed during scanning.
+2. **Flush** — checkpoint `saveDb()` only every `TAG_SAVE_INTERVAL` (= 1000) written tags, since
+   `db.export()` serializes the whole database and blocks the main process (stalling all IPC,
+   including freshly imported files). After the queue drains, the final save + `VACUUM` (only
+   after substantial work) are deferred via `setImmediate` so queued IPC is served first.
+3. **Refill** — `refillQueue()` pulls up to 20 unscanned rows
    (`WHERE tags_scanned_at IS NULL ORDER BY path LIMIT ?`).
 4. **Loop** — if refill found work, continue draining. If not, send `{ path: null }` completion
    signal (after a final `saveDb()`).
 
 **Progress counting**: at the start of `processQueue()`, a single query
-(`SELECT COUNT(*) FROM files`) captures the total number of files in the library, and another query
-(`SELECT COUNT(*) FROM files WHERE tags_scanned_at IS NOT NULL`) captures how many are already
-tagged. Each `tags:scanning` event increments `scanned` so it climbs from the already-tagged count
-to `total` — the status bar displays `(n/total)`.
+(`SELECT COUNT(*) FROM files WHERE tags_scanned_at IS NULL`) captures how many files need
+tag scanning in this run. A local `scannedInRun` counter starts at 0 and increments per file.
+The status bar displays `(scannedInRun/totalToScan)` — purely progress of the current scan,
+unrelated to the DB's total row count.
 
 **Error handling**: `readSingleFile` wraps `parseFile` in try/catch — on failure, `tags_error`
 is set to 1 and `tags_scanned_at` is still recorded with a timestamp, so the file is never
@@ -241,20 +382,30 @@ the queue.
 **Priority**: The renderer sends visible file paths via `db:prioritizeFiles`. The main process first
 filters out already-scanned files (checks `tags_scanned_at IS NULL` in DB), then prepends them to the
 queue in order (selected track first, then visible rows in DOM order, deduped via Set).
+Playlist imports (`db:scanSpecificFiles`) use the same mechanism: after inserting the
+rows, the unscanned paths are prepended to the queue, so a fresh import is always tag-read before
+anything else queued — including files from an earlier import that are still waiting (most recent import
+wins). Imports do not run a private parser pool; they share the background loop.
 
 **Stopping**: Both `db:clearDatabase` and `db:stopTagRead` set `stopped = true`, clear the
 queue, and await a `donePromise` that resolves when the loop exits. The loop checks
 `stopped` before each iteration and before calling `refillQueue()`, which also checks the flag.
 
-**Startup**: `startTagRead()` is called once at app startup after settings and folders are initialized.
-If the DB already has files from a previous session, only unscanned entries are queued. No filesystem
-access occurs on startup.
+**Startup**: `startTagRead()` is NOT called at app startup. Tag reading only begins when the user
+explicitly clicks the Scan button or closes the folders dialog after making changes. The DB is
+read at startup to populate the track list, but no tag processing occurs.
 
 **Scan triggers**: A full folder scan happens when:
 
 * The user adds/removes a folder in the folders dialog and closes it (the `foldersChanged` flag
   triggers `runFullScan()`)
-* The user clicks the Scan button in the groups panel (runs `db:runIncrementalScan` directly)
+* The user clicks the Scan button in the groups panel (also runs `runFullScan()`)
+
+Both call the centralised `runFullScan()` in `src/scanner.ts` which: (a) prunes DB entries from
+disabled/removed folders via `allowedPaths`, (b) discovers new files in enabled folders, and
+(c) re-reads tags for files whose timestamps changed. Scanning always runs even when no
+folders or DLNA servers are enabled — this ensures DB pruning still sweeps stale entries
+from previously removed folders/servers.
 
 ## Source Files
 
@@ -275,13 +426,110 @@ SQLite operations: `initDb()` creates/migrates the schema, `loadFiles()`, `store
 
 Background tag queue (see Tag Reader section above). Functions: `initTagReader()`,
 `startTagRead()`, `stopTagReader()`, `prioritizeFiles()`, `runIncrementalScan()`,
-`rescanFiles()`.
+`rescanFiles()`. `runIncrementalScan()` accepts an optional `allowedPaths` parameter:
+when provided, it prunes non-DLNA DB entries whose paths don't reside under any
+of the given path prefixes. DLNA rows (`dlna = 1`) are excluded from its filesystem sweep —
+they are remote stream URLs with no local file to stat. The `removed` count in the result
+is computed as `countBefore - countAfter` (total rows before and after the sweep), so it
+accurately reflects all deletions — both allowedPaths pruning and missing-file cleanup.
+
+### `src/main-process/dlna.ts`
+
+DLNA / UPnP AV ContentDirectory scanner. `scanDlnaLibrary(db, servers, onProgress)`
+takes a LIST of servers (`{ name, control-url, description-url }`, from the folders-dialog selection) and
+enumerates them one after another: each `control-url` is resolved to the ContentDirectory
+control URL (accepts the control URL directly or a device-description URL;
+well-known description paths of common servers are probed as fallback; if the
+description can't be fetched but `description-url` is known, the description URL is
+re-derived and probed once more), then recursively Browse-enumerates every
+container starting at object id `"0"` via SOAP over HTTP (`fast-xml-parser` parses
+both the SOAP envelope and the escaped DIDL-Lite result fragments). Items whose
+`upnp:class` starts with `object.item.audioItem` become tracks: metadata (title,
+artist(s), album, album artist, track/disc number, genre, year, composer, conductor)
+is extracted from DIDL-Lite, duration from `res@duration`, and the `res` stream URL
+becomes both `path` and `filename` in the DB with `dlna = 1`. The DIDL-Lite schema has
+no composer/conductor elements and no BPM property: composers/conductors arrive as
+`upnp:artist|upnp:author role="Composer|Conductor"` (album artists as `role="AlbumArtist"`,
+unlabelled entries are the performing artists resp. song authors) — roles are split accordingly,
+with non-standard `<upnp:composer>`/`<upnp:conductor>` elements kept as fallbacks. Many
+servers (e.g. ReadyDLNA) put the file's composer tag into an UNLABELLED `upnp:author`,
+which therefore feeds the composer column; conductors are only announced by role-aware
+servers. BPM therefore stays 0 for DLNA rows; it would require reading tags off the stream.
+With "debug-log" enabled, the first raw DIDL page of each scan is dumped to
+musicpenguin.log so tag-to-DIDL mappings can be verified against server output.
+All of the item's
+`upnp:albumArtURI` values are stored newline-separated in the `track_art_url`
+column for on-demand cover fetching. Because remote
+enumeration is slow, tracks are stored page by page as they are discovered
+(`storeDlnaTracks` per Browse page, database file flushed to disk at most every
+2 s) and each batch is pushed to the renderer via `dlna:progress { found, added }`
+so the main list grows live. Tracks from all servers are merged (keyed by stream
+URL — duplicates across servers are stored once), then synced: rows no longer
+offered by ANY enabled server are removed, rating/playcount of surviving rows
+persist. A server that fails mid-enumeration keeps its already-found tracks.
+Per-server failures are collected into `errors`
+(`name: message`) and returned alongside `{ added, removed, total }` so the UI can
+report which server failed while keeping the others' results. All HTTP requests
+retry transient transport errors (some servers — e.g. Synology DSM — reset rapid
+back-to-back connections), and each server's enumeration emits an immediate
+`found = 0` progress event so the status bar shows activity right away.
+Progress events never outlive their scan: the renderer drops any event arriving
+after `scanDlnaSource()` settled (sequence + active guard in `scanner.ts`), so the
+status bar always ends on a final state instead of stale "Scanning ..." text
+(dropped batches lose nothing — rows were already persisted and return via
+the post-scan `loadFiles()` reload). During enumeration the status bar only ever
+reports tracks DISCOVERED SO FAR — the total is unknowable while browsing, so it is
+never implied. Containers whose pages repeatedly come back full-size without any
+newly discovered item/container are treated as exhausted after 2 such pages,
+protecting against servers that ignore `StartingIndex` and would otherwise be
+enumerated forever.
+
+After every scanning workflow (incremental file scan, DLNA scan — never at app start) `fixupMissingDurations(db)` runs the
+layer-2 duration fixup: ffprobe is called on every row with `duration IS NULL`
+(3 in parallel, 30 s kill-timeout each, aborted after 5 consecutive failures so
+a dead server can't stall the pass), learned values are written back through
+`fillMissingDuration()` (NULL gaps only) and reported to the renderer via
+`library:durations-fixed`. Tracks that survive with NULL fall through to the
+layer-3 `<audio>` element gap filler at play time (see now-playing.ts).
+
+### `src/main-process/ssdp.ts`
+
+SSDP discovery of UPnP/DLNA media servers on the local network.
+`discoverDlnaServers()` sends M-SEARCH requests to UDP multicast 239.255.255.250:1900
+(several targeted probes — `ssdp:all`, `upnp:rootdevice`,
+`urn:schemas-upnp-org:device:MediaServer:1`, `urn:schemas-upnp-org:service:ContentDirectory:1` —
+because some servers only answer specific STs), collects all unique HTTP description
+URLs from RESPONSE/NOTIFY packets for ~3 s (NOTIFY alive packets are also accepted,
+so servers that missed the M-SEARCH still show up), fetches every device description,
+and for the deepest device that offers a ContentDirectory service resolves:
+* `name` — its `friendlyName` (more specific than the root device name)
+* `location` — the description URL it was found at
+* `controlUrl` — absolute ContentDirectory control URL (`scpdurl`/`URLBase` relative resolution)
+* `icon` — best icon as data URL (PNG/JPEG preferred by raster size + area, ≤ 512 KB,
+  ancestor devices' icons are used when the matched device has none)
+
+Media renderers and other devices without a ContentDirectory are filtered out.
+Results are deduped by control URL and sorted by name. No third-party SSDP library.
 
 ### `src/main-process/cover-art.ts`
 
-`getCoverArt(filePath)` — reads embedded picture via `music-metadata` (10s timeout,
-`{ duration: false }`), or falls back to `folder.jpg`/`cover.jpg`/`front.jpg`/`front.png` (and `.jpeg` variants) next to the file.
-Returns a data URL or null.
+`getCoverArtGroups(filePath)` — the track's cover art as three disjunct
+groups in one call (single tag parse): `front` = embedded picture #1, else
+the track-named image (`song.mp3` → `song.jpg`/`.png`/…), else a front-named
+file; `rearCovers` = additional embedded pictures plus `rear`/`back`-named
+files (`REAR_COVER_FILENAMES`, config order); `extraImages` = all remaining
+images in the folder, alphabetically. Front-named files and the track-named
+image never leak into the other groups. Filename lists live in
+`FRONT_COVER_FILENAMES` / `REAR_COVER_FILENAMES` / `COVER_IMAGE_EXTENSIONS`
+in `src/config.ts`. `getCoverArt(filePath, maxSize?)` (front group only)
+accepts an optional `maxSize` parameter: when provided, `resizeToThumbnail()`
+uses Electron's `nativeImage` to resize the image before returning a data
+URL. `getCoverArtGroups()` always returns full resolution (used by theater
+mode). `fetchDlnaCoverArt(streamUrl, artUrlSpec)` fetches a DLNA track's
+announced `upnp:albumArtURI` candidates over HTTP (relative URIs resolved
+against the stream URL, max 8 in parallel) and picks the largest image by
+pixel dimensions — so theater mode always gets the full-size variant. The IPC
+handlers route http(s) paths there instead of the local-file logic.
 
 ### `src/main-process/kde-theme.ts`
 
@@ -303,6 +551,37 @@ Ambient declaration for `sql.js` (which ships no types): declares its default ex
 `SETTINGS_DIR`, `SETTINGS_PATH`, `DEFAULT_DB_PATH` — resolves `~/.config/musicpenguin/...`.
 `getDbPath()` — reads `db-path` from musicpenguin-settings.json, falls back to default.
 
+### `src/main-process/mpris.ts`
+
+MPRIS (Media Player Remote Interfacing Specification) server for Linux desktop integration.
+Registers MusicPenguin on the D-Bus session bus as `org.mpris.MediaPlayer2.MusicPenguin`
+so desktop environments route media keys to the app. Uses `dbus-native` to define the
+`org.mpris.MediaPlayer2` and `org.mpris.MediaPlayer2.Player` interfaces with properties
+(PlaybackStatus, Metadata, Volume, CanGoNext, CanGoPrevious) and methods (Play, Pause,
+PlayPause, Stop, Next, Previous).
+
+**Media key handling is DE-specific** (detected via `XDG_CURRENT_DESKTOP`):
+
+*KDE*: KDE's `kglobalaccel` intercepts all media keys and fires D-Bus broadcast signals
+(`org.kde.kglobalaccel.Component.globalShortcutPressed`) on the session bus. KDE's
+`plasma-shell` then forwards these as MPRIS method calls — but **silently drops PlayPause**
+(and sometimes Next/Previous). To work around this, MusicPenguin subscribes directly to
+the `globalShortcutPressed` signal and handles all media keys itself. MPRIS method handlers
+are set to no-op to prevent double-firing from plasma-shell's incomplete forwarding.
+
+*GNOME / other*: Media keys are routed directly as MPRIS method calls to the active player.
+No `globalShortcutPressed` signals exist. MusicPenguin overrides the MPRIS method handlers
+to fire actions via the `onAction` callback.
+
+**PropertiesChanged emission**: `updateMprisState()` emits `PropertiesChanged` D-Bus signals
+via `bus.emitPropertiesChanged()` whenever player state changes. Without this, KDE's media
+controller does not recognise MusicPenguin as the active player and may route media keys to
+other MPRIS clients (e.g. Firefox).
+
+The renderer sends state updates via the `mpris:updateState` IPC channel, and MPRIS method
+calls (or globalShortcutPressed signals) are forwarded to the renderer as `media-key` IPC
+messages.
+
 ### `src/main-process/utils.ts`
 
 `walkDirectory()` — recursive file scan matching `MEDIA_FILE_EXTENSIONS`. `withTimeout()` —
@@ -311,25 +590,86 @@ Promise race with timeout. `ensureDir()`. `commandExists()` — checks `which`. 
 
 ### `src/config.ts`
 
-Central constants: `TAG_BATCH_SIZE` (100), `NUM_TAG_READER_THREADS` (4), `MEDIA_FILE_EXTENSIONS`
-(all scannable audio/video extensions), `PLAYABLE_FILE_EXTENSIONS` (built-in `<audio>` playback),
-and `DEFAULT_SEARCH_URLS` (5 search URL templates: Discogs, Amazon, Google, MusicBrainz, DNB).
+Central constants: `TAG_BATCH_SIZE` (20), `NUM_TAG_READER_THREADS` (4), `MEDIA_FILE_EXTENSIONS`
+(all scannable audio/video extensions), `PLAYABLE_FILE_EXTENSIONS` (built-in `<audio>` playback,
+including `.mp2` which Chromium can decode for MPEG-1 Layer II but not MPEG Layer II),
+`DEFAULT_SEARCH_URLS` (5 search URL templates: Discogs, Amazon, Google, MusicBrainz, DNB),
+`MIN_EXTRA_IMAGE_SIZE` (100, minimum size for theater mode extra images),
+and `THEATER_FADE_TOTAL_MS` (6000, combined theater mode fade-out + fade-in time; half per
+direction).
+
+### `src/debug-log.ts`
+
+Debug logging for the renderer process. `initDebugLog()` reads the `debug-log` setting.
+`debugLog(...args)` writes timestamped lines via IPC to `~/.config/musicpenguin.log` when
+enabled, or no-ops when disabled. Used for media key event tracing.
 
 ### `src/index.ts`
 
 Renderer entry point (bundled to `dist/bundle.js`). Initializes all panels: groups, list,
-detail, now-playing, split-panes, playlist, search, settings. Handles the Scan and Problematic
-files buttons in the groups panel. Loads tracks from DB, restores
-sort/column/splitter state from settings. Registers `tags:updated` handler (patches in-memory
-track data and re-renders), `tags:scanning` handler (updates status bar). Integrates playlist
-and main-list track advancement via `onTrackEnd` and theater mode nav callbacks.
-Uses `requestAnimationFrame` to let the browser paint the shell before loading DB data.
+detail, now-playing, split-panes, playlist, search, settings. Handles the Scan button (delegates
+to `runFullScan()` in `src/scanner.ts`) and Problematic files button in the groups panel.
+Loads tracks from DB, restores
+sort/column/splitter state from settings. Registers `tags:scanning` handler (updates status bar)
+and `library:changed` handler (full track list reload after scan completes). Integrates playlist
+and main-list track advancement via `onTrackEnd` and theater mode nav callbacks. Main list
+navigation (`mainListNext`/`mainListPrev`) respects global shuffle/repeat modes — shuffle
+picks random tracks from the unplayed set, repeat-all wraps at list boundaries, repeat-one
+replays on auto-advance. Uses `requestAnimationFrame` to let the browser paint the shell
+before loading DB data. **Standard sorting modes** live in `src/sorting.ts`: `SORTING_MODES` is a named registry of reusable
+library sorts (`{ id, name, sort }`), with the canonical **"Artist, Album, TrackNo"** mode (`id`
+`artist-album-trackno`, exported as `ARTIST_ALBUM_TRACKNO`) as its first element (plus a `filename`
+mode, `FILENAME`). `applySortingMode(id, arr)` looks up a mode by id and applies its `sort` to a
+`Track[]` array in place; `sortPlaylistByArtistAlbumTrackNo()` is the `PlaylistEntry[]` variant.
+The "Artist, Album, TrackNo" mode (`ARTIST_ALBUM_TRACKNO`) is offered at the top of the "Sort by:"
+section of both the main-list and playlist context menus (the other modes are currently only invoked
+programmatically). The active mode is shown highlighted; the main list highlights it via the list
+controller's `setSortingMode()`, and applying it clears the manual column-sort arrows
+(`clearManualSortIndicator`).
+
+Context-menu Goto actions apply context-appropriate sort orders without updating the
+global sort state or column header sort indicators. Each Goto action (and the equivalent album/
+artist/composer/folder group click) calls `clearManualSortIndicator()`, which resets `sortColumn`/
+`sortDirection`, clears the column-header arrows via `updateSortIndicators()`, and clears the list's
+`setSortState` — so no manual-sort arrow is shown (arrows reappear only when the user sorts manually):
+- **Goto Album**: sorts by track number ascending via `applySortingMode("trackno", ...)`.
+- **Goto Artist**: sorts by artist ascending, then album ascending, then track number ascending via `applySortingMode("artist-album-trackno", ...)`.
+- **Goto Composer**: sorts by artist ascending, then album ascending, then track number ascending via `applySortingMode("artist-album-trackno", ...)` (composer-based sort is intentionally omitted).
+- **Goto Folder**: for local files sorts by filename ascending via `applySortingMode("filename", ...)`; for DLNA tracks sorts by artist/album/track via `applySortingMode("artist-album-trackno", ...)`.
+
+All goto functions use `captureSelectionAnchor()` before the sort and `restoreSelectionAnchor()` after, falling back to `setScrollOffset(0)` only when no anchor exists, so the user's scroll position is preserved across re-sorts.
+
+**Actively clicking a group** (selecting it in the left panel) applies that group's sorting
+scheme to the main list the same way a Goto action would — overriding and clearing any
+differing manual sort (`manualSortApplied = false`): album, artist and composer groups sort by
+artist→album→track; folder groups by filename (artist→album→track for DLNA). "All Tracks",
+"Search Result" and "Most Played" keep using the global sort state (Most Played still forces
+playcount descending).
+
+**Left-panel group persistence**: The groups created by a Goto action are persisted to
+`musicpenguin-settings.json` under `group-items` — a flat array of `{ "kind", "value" }`
+entries (`kind` ∈ album/artist/composer/folder; `value` is the string that populated the
+group: album/artist/composer name, or the folder path for folder groups). Only the KIND and
+that string are stored — never the computed result tracks. The array is written in the exact
+order the sections render on the left panel (album groups, then artist, then composer, then
+folder), so within each section the order survives a restart. Saved whenever a Goto action
+additionally creates a new group or the user DEL-removes one; restored at startup
+(`loadGroupItems()` runs before the first `refreshGroupsUI()`) by rebuilding the four group
+arrays from the `kind`/`value` pairs and re-deriving the node ids and folder basename labels.
 
 ### `src/types.ts`
 
-* `TreeNode` — `id`, `label`, `children?`, `coverArt?`
+* `TreeNode` — `id`, `label`, `children?`, `thumbnail?`
 * `ListItem` — flattened display row (`id`, `path`, `filename`, `title`, `artist`, `album`, `trackNo`, `albumArtist`, `genre`, `year`, `ext`, `discNo`, `rawTrackNo`, `trackPath`, `composer`, `conductor`, `comment`, `rating`, `bpm`, `duration`, `playcount`)
-* `PlaylistEntry` — `path`, `title`, `artist`, `duration`, `album`, `trackNo`, `albumArtist`, `genre`, `year`, `composer`, `conductor`, `comment`, `rating`, `bpm`, `playcount`, `filename`, `ext`, `trackPath`, `id`
+* `PlaylistEntry` — `path`, `title`, `artist`, `duration`, `album`, `trackNo`, `albumArtist`, `genre`, `year`, `composer`, `conductor`, `comment`, `rating`, `bpm`, `playcount`, `filename`, `ext`, `trackPath`, `id`, `_playing?` (thumbnail cache is in `src/thumbnail-cache.ts`)
+
+### `src/thumbnail-cache.ts`
+
+Application-wide singleton (`Map<string, string>`) caching 32×32 px cover art data URLs
+keyed by file path. `fetchThumbnail(filePath)` checks the cache, then calls `getCoverArt`
+with `maxSize: 32` on miss and stores the result. `getThumbnail(filePath)` provides
+synchronous cache lookup. Shared by the playlist and groups panel — the same file
+triggers only one IPC round-trip.
 
 ### `src/electron-types.d.ts`
 
@@ -339,16 +679,45 @@ exposed via preload), and `Window` augmentation.
 ### `src/groups-view.ts`
 
 Renders a flat `<ul>` from `TreeNode[]`. Click selects a node; double-click opens it.
-Supports cover art thumbnails, drag-to-playlist, and context menu (Show in Folder for folders).
-Flat despite `TreeNode.children` existing in the type.
+Supports cover art thumbnails (via the shared `ThumbnailCache`, 32×32 px), drag-to-playlist,
+and context menu (Show in Folder for folders; skipped for URL-derived folder groups — no
+physical directory to reveal). Flat despite `TreeNode.children` existing in the type.
+DEL key removes the selected album, artist, composer, or folder group item from the
+left panel (fixed groups and headings are not removable; the change is persisted via the
+`group-items` setting). After removal, selection moves
+to the next item in the same section, or the previous one, or falls back to "All Tracks".
 
 ### `src/list-view.ts`
 
 CSS Grid table with resizable columns (drag handles update CSS variables → saved to settings).
-Multi-selection (Ctrl/Shift/Arrow keys), drag-to-playlist, context menu (Show in Folder, Play in
-VLC, Copy Path, Rescan Tags, Goto Album, Goto Folder, Sort by column). Click → `onSelect` +
+Multi-selection (Ctrl/Shift/Arrow keys), drag-to-playlist, context menu (Show in Folder — reveals
+the folder of the first local file in the selection and is omitted only when the selection holds no
+local files at all, Play
+in external player, Copy Path, Rescan Tags, Goto Album, Goto Folder, Goto Artist, Goto Composer, Sort by column). Click → `onSelect` +
 priority paths. Double-click → `onDblClick` play.
 `formatTime()` converts seconds string to `MM:SS`/`HH:MM:SS`.
+
+**Goto sorting**: Context-menu Goto actions apply a context-appropriate sort order without
+updating the global sort state or column header sort indicators. Goto Album sorts by track number
+ascending. Goto Artist and Goto Composer sort by artist, then album, then track number ascending
+(composer-based sort is intentionally omitted). Goto Folder sorts by filename ascending for local
+files, or by artist/album/track for DLNA tracks. Sort indicators only reappear when the user
+interactively clicks a column header.
+
+**Manual vs. discovery sort**: A `manualSortApplied` flag (persisted in settings) records
+whether the user has actively sorted by clicking a column header (`onHeaderClick` / context-menu
+`applySort`). `renderTrackList()` only re-sorts the list when this flag is set; otherwise it
+leaves the source exactly as-is (initial library discovery order, or the custom order produced by
+a Goto action). Goto actions mark the flag as false and pass their already-sorted source array
+directly to `renderTrackList(source)` so the custom artist→album→track order is preserved and
+never clobbered by the stale global column sort.
+
+**Scroll stabilization**: Goto actions preserve scroll position via `captureSelectionAnchor()`
+and `restoreSelectionAnchor()`. Before a sort, the currently selected track's ID and its pixel
+offset from the scroll container's top are captured. After the sort, `selectAndScrollTo()` locates
+the same track in the re-sorted list and scrolls it back to its original offset. If the track
+is no longer visible (e.g. filtered out), the scroll position falls back to the top of the list.
+This prevents jarring jumps when the user navigates via Goto Album/Artist/Folder/Composer.
 
 **Column resize mechanism**: Each column's width is stored as a pixel CSS custom property
 (e.g. `--col-album: 300px`) on `#list-table`. The `grid-template-columns` uses
@@ -365,38 +734,91 @@ called on mouseup (never on mousemove).
 
 Display form: path (editable — renames/moves file on disk via `db:moveFile`), title, artist, album,
 album artist, track/disc/year/genre/composer/conductor/rating/comment. Cover art loaded lazily
-via `getCoverArt()`. Double-click cover → theater mode.
+via `getCoverArt()`; tracks without art show a ♫ placeholder instead. Clicking or double-clicking
+the cover area — art or placeholder alike — always opens theater mode for the shown track
+(no track selected → click is ignored).
 
 ### `src/now-playing.ts`
 
 Manages `<audio>` element. Two-row bar: track info + controls (play/pause, seek bar, time,
-duration, volume). Saves `now-playing`/`volume`/`muted` to settings on `beforeunload`.
-Restores position on startup. Double-click track info → theater mode.
+duration, rating, **shuffle**, **repeat**, volume). Global playmode state (shuffle on/off,
+repeat off/one/all) lives here — affects both main list and playlist navigation. Includes
+smart shuffle: maintains a history set so no track repeats until all tracks in the current
+source have been played. Saves `now-playing`/`volume`/`muted` to settings on `beforeunload`;
+shuffle/repeat are persisted via `saveSettings` on toggle. Restores position on startup.
+Double-click track info → theater mode.
+
+Only "significant" plays increment the play count (`MIN_PLAY_SECONDS` = 20): a play counts
+when at least 20 continuously played seconds were accumulated via `timeupdate` (seeks and
+jumps are ignored), or when playback reached the natural end of the track ("ended" event,
+which also covers tracks shorter than 20 s).
+
+`resetNowPlayingWidget()` tears the widget down entirely (pauses audio, clears src, resets the
+selected track, info text, play button, progress/time, duration and rating) — used after the
+database is emptied.
+
+Layer-3 duration gap filler: when `loadedmetadata` fires for a track whose stored
+duration is unknown (NULL), the duration reported by this `<audio>` element is
+persisted via `db:fillDuration`; on success a `track-duration-known` DOM event
+lets the main list/playlist models pick the value up immediately.
+
+Tags refresh on play: starting playback of a LOCAL file re-queues it for a tag
+re-read (`db:rescanFiles` with `onlyIfModified`), so title/artist/... in the DB
+are corrected from the real file whenever it actually changed (mtime newer than
+the last tag scan — same staleness rule as the incremental sweep; unchanged
+files are skipped without touching the queue, never-scanned ones are read).
+Results arrive via the normal `library:changed` refresh after scan completes. A 5-minute per-path cooldown
+keeps pause/resume cycles and instant replays from re-stat-ing redundantly;
+stream URLs (DLNA) are skipped entirely (`rescanFiles()` ignores http(s) paths —
+no locally readable tags), their duration gap being filled by the `<audio>`
+mechanism above.
 
 ### `src/theatermode.ts`
 
 Fullscreen cover art overlay with playback controls, progress bar, prev/next buttons, cursor
-auto-hide, and crossfade transition. Triggered by double-clicking cover art or now-playing
-info. Integrates with both playlist and main-list navigation via callbacks.
+auto-hide, and crossfade transition (fade to black over the end of the current track, content
+swap while hidden, fade back in over the start of the next). Triggered by clicking or
+double-clicking the detail
+panel's cover art (works with and without cover art) or double-clicking the now-playing
+info. Integrates with both playlist and main-list navigation via callbacks. Clicking the
+cover cycles rear covers first, then extra images (`getCoverArtGroups()`), then back to
+the front cover; sub-100×100 px images are skipped. Closing is via the close button,
+Escape, or clicking anywhere outside an interactive control (buttons, sliders, rating
+stars and the cover are exempt). Clicks within a short grace window after opening are
+ignored, so the second click of a double-click cannot instantly re-close the overlay.
+The fading only runs when it FITS — otherwise the transition is sudden and immediate:
+the fade-out is skipped when the current track's remaining time was never longer than the
+per-direction fade duration (track shorter than that, or theater mode opened too
+late), and the fade-in is skipped when the next track is shorter than the fade duration.
+If either side skips, no black hold and no animation happens at all. The combined
+fade-out + fade-in time is configured via `THEATER_FADE_TOTAL_MS` in `src/config.ts`;
+half of it is used per direction (also applied to the `--tm-transition-duration` CSS
+variable at startup).
 
 ### `src/file-probe.ts`
 
 `probeFileForErrors(bytes)` — inspects an in-memory file for known structural
 defects and returns the found errors as an array of `FILE_PROBE_ERROR` enum
-constants (currently just `FILE_PROBE_ERROR.WAV_WRAPPED_MP3`, matching the
-detection in `fix_wav_mp3.py`). The read size limit (`MAX_PROBE_FILE_SIZE`)
+constants: `FILE_PROBE_ERROR.WAV_WRAPPED_MP3` (matching the detection in
+`fix_wav_mp3.py`) and `FILE_PROBE_ERROR.MPEG_LAYER_II` (MPEG-1 Layer II audio,
+which Chromium cannot decode). The read size limit (`MAX_PROBE_FILE_SIZE`)
 lives in `src/config.ts`.
 
 ### `src/playback-error.ts`
 
 `handleAudioPlaybackError(filePath)` — probes a failed playback (see
 `src/file-probe.ts`) and shows an explanatory dialog with an optional "Try to
-play in VLC instead" action. Guarded so the `<audio>` "error" event and a
+play in the external player instead" action. MPEG Layer II files are auto-routed
+to the external player if one is configured; otherwise a descriptive error is shown.
+Guarded so the `<audio>` "error" event and a
 rejected `play()` promise for the same file yield only one dialog.
 `onPlaybackFailure(filePath, err)` is the shared `play()` rejection callback
 (ignores `AbortError`/`NotAllowedError`); every play entry point — now-playing,
 theater mode, playlist — funnels through it, while the "error" event listener in
 `src/now-playing.ts` covers the decode-failure path for all of them.
+While theater mode is open, `setSilentSkipHandler()` (registered by
+`src/theatermode.ts`) swallows that dialog and skips forward to the next track
+instead; consecutive skips are capped and reset when playback actually starts.
 
 ### `src/audio.ts`
 
@@ -408,16 +830,56 @@ now-playing bar and theater mode.
 Overlay dialog with a dark mode toggle and close button. The folders dialog is opened
 independently by the Folders button in the groups panel (handled by `src/folders-dialog.ts`).
 
+Also contains a **Danger Zone** section: a red "Empty MusicPenguin Library" button (left-aligned, styled
+like the delete-confirmation red button) that opens a confirmation overlay asking "Are you
+sure to empty the MusicPenguin library?...". Confirming calls `window.electronAPI.clearDatabase()`
+(`db:clearDatabase`), which stops the tag reader, deletes every row, saves the DB, emits
+`library:changed` so the renderer reloads the empty library, then resets the Now Playing
+widget (`resetNowPlayingWidget` in `src/now-playing.ts`) and clears the details panel
+(`showDetails(null)`). It also fires the `setOnDatabaseCleared` callback (registered by
+`src/index.ts`), which drops every user-built `album`/`artist`/`composer`/`folder` group
+section from the left panel (empties the arrays, persists empty `group-items`, and, if the
+current group was one of those sections, resets the selection to "All Tracks"), then closes
+the settings dialog.
+
 ### `src/folders-dialog.ts`
 
 Separate overlay for managing scanned folders: add/remove folders, expand/collapse subdirectories,
 toggle per-folder checkboxes, and delete selected folders. Opened by the Folders button in the
-groups panel. On close, triggers `runFullScan()` if any folder configuration changed.
+groups panel. Also holds the DLNA server list: on open it runs SSDP discovery
+(`dlna:discover`) and renders every found media server as a checkbox row with its icon,
+name with its host address in parentheses; new servers default to unchecked, existing selections are persisted as
+`dlna-servers` including each server's icon data URL — captured during discovery and
+reused on reopen so rows render with their logo immediately, before the next search
+finishes (with a status line for searching/empty/failed states). On close, calls
+`runFullScan()` from `src/scanner.ts` (passing its in-memory folder/DLNA state as `folders`
+and `dlnaServers` overrides) if any configuration changed; its summary is written after
+`onScanComplete()` (list reload) so it is deterministically the status bar's final state.
+Scanning always runs even when no folders or DLNA servers are enabled — this ensures
+DB pruning still sweeps stale entries from previously removed folders/servers.
 
 ### `src/scanner.ts`
 
+Centralised scan orchestration. `runFullScan(opts?)` is the single entry-point for both the
+folders dialog close and the Scan button: loads folders/DLNA servers from settings (or uses
+the `folders`/`dlnaServers` overrides), computes `allowedPaths` via `flattenEnabled()`, runs
+filesystem scan → `runIncrementalScan(files, allowedPaths)` (prunes entries outside allowed
+paths), then DLNA enumeration → `scanDlnaSource()`. Returns `FullScanResult` with
+`total` (entries in DB after scan), `removed` (entries deleted during this sweep), and
+`errors` (files with tags_error = 1). Status bar shows a single unified line.
+
 `scanFolders(folders, onProgress?)` — iterates folders, calls `electronAPI.scanFolder()` for
 each. Returns `{ files, errors }`. Each folder independently try/caught.
+`loadFolders()` — reads the `folders` tree from settings.
+`flattenEnabled(nodes)` — recursively collects enabled leaf folders.
+
+DLNA source handling: `loadDlnaServers()` / `saveDlnaServers()` persist the server selection
+(`dlna-servers` setting), `enabledServers()` filters the checked entries, and `scanDlnaSource(overrides?)` invokes
+`dlna:scan` with the enabled list (optionally overridden by an in-memory list from the
+folders dialog) and returns `{ added, removed, total, errors }` — or `null` when no DLNA
+server was ever involved. `subscribeDlnaProgress()` wraps the `dlna:progress` push channel;
+its events carry the newly discovered track rows so `src/index.ts` can merge them into the
+library live (re-render throttled to ~400 ms) while enumeration is still running.
 
 ### `src/split-pane.ts`
 
@@ -426,9 +888,53 @@ both axes. State persisted to settings.
 
 ### `src/playlist-panel.ts`
 
-Playlist with drag-drop reorder, shuffle (random next), repeat (off/one/all), randomize
-(Fisher-Yates), clear, multi-select, keyboard delete, auto-advance via `onTrackEnd`.
-Entries rebuilt from DB paths on load. Lazy cover art loading.
+Playlist with drag-drop reorder, randomize (Fisher-Yates), clear, multi-select, keyboard delete,
+auto-advance via `onTrackEnd`. Entries rebuilt from DB paths on load. Shuffle and repeat modes
+are global (managed by `src/now-playing.ts`); playlist reads them via `getShuffle()`/`getRepeat()`
+and subscribes to `onPlayModeChange` for re-rendering.
+Whenever new tracks are ADDED to the playlist while a MAIN-LIST track is currently
+playing and that track is part of the (resulting) playlist, `adoptPlayingTrackIntoPlaylist()`
+adopts it as the playlist's current entry: the playlist play/pause button shows the pause
+state, the 🔊 indicator anchors to that row, and prev/next (now-playing bar and MPRIS) operate
+on the playlist from then on — including auto-advance on track end. This covers every add path:
+internal drags from the main list or groups panel (viewport and
+item-level drop handlers; pure internal reorders do not adopt). No adoption happens when playback
+is paused or when the playing track is not in the playlist; if playlist mode was already active,
+the existing re-anchor behavior applies unchanged.
+
+**Playlist cover art**
+
+Cover art thumbnails (32×32 px) are lazily loaded via the application-wide `ThumbnailCache`
+(`src/thumbnail-cache.ts`). The cache stores data URLs keyed by file path and is shared by
+both the playlist and groups panel — the same file triggering only one IPC round-trip.
+
+**Approach considered — eager per-row loading:** Fire `getCoverArt()` on every `populate()` call,
+loading art for any visible row that lacks it. This was tried and rejected. With virtual scrolling,
+DOM row elements are recycled to display different data indices as the user scrolls. Eager loading
+fires fetches continuously during scroll; by the time results arrive, the DOM bindings have shifted.
+Stale results land on wrong rows, fetches for rows already scrolled off-screen waste IPC calls, and
+concurrent fetches pile up faster than they resolve. The result is a visual mess where images never
+appear correctly.
+
+**Chosen approach — scroll-stop loading:** Fetches only fire after scrolling settles, so row→data
+bindings are stable when results arrive. A debounce timer resets on every `populate()` call; only
+when the timer expires (200 ms of inactivity) does the actual fetch batch execute.
+
+**How it works:**
+1. `populate()` renders visible rows. If `getThumbnail(path)` returns a cached data URL, it is
+   shown immediately (placeholder hidden, `<img>` created/swapped). No IPC needed.
+2. `populate()` calls `scheduleCoverLoad()` which sets a 200 ms debounce timer.
+3. Each subsequent `populate()` (during scroll) resets the timer. Only when scrolling stops
+   does `loadVisibleCoverArt()` execute.
+4. `loadVisibleCoverArt()` increments a generation counter, then collects visible entries that
+   lack a thumbnail in the cache. `fetchThumbnail()` checks the cache first; on miss it calls
+   `getCoverArt` with `maxSize: 32` via IPC. Fetches run with concurrency cap (6); each result
+   is guarded by the generation counter — if a new scroll started, stale callbacks are silently
+   dropped.
+5. On resolution, `applyCoverArt()` updates the DOM row directly.
+
+**Cache lifecycle:** The ThumbnailCache persists for the session (survives scroll, reorder, filter).
+It is shared across all consumers (playlist, groups panel, any future UI).
 
 ### `src/search-panel.ts`
 
@@ -438,17 +944,37 @@ to settings.
 
 ## Key Behaviors
 
-* **Startup**: No folder scanning. `requestAnimationFrame` lets the browser paint the shell before
-  loading DB data. Reads SQLite, checks for unscanned entries, starts tag reader only if needed.
-  Sort state, column widths, and splitter state are restored from settings before first render.
-  Loads persisted now-playing track and restores playback position.
+* **Startup**: No folder scanning and no tag reading. `requestAnimationFrame` lets the browser paint the shell before
+  loading DB data. Reads SQLite and populates the main track list. Sort state, column widths,
+  and splitter state are restored from settings before first render. Loads persisted now-playing
+  track and restores playback position. Tag reading only starts when the user clicks the Scan
+  button or closes the folders dialog after making changes.
 * **Double-click to play**: Double-clicking any row in the list view immediately sets it as the
   current track and starts playback via `playTrack()`.
-* **Theater mode**: Double-click cover art in the detail panel or the track info in the now-playing
-  bar opens a fullscreen overlay with cover art, playback controls, and prev/next navigation.
-* **Scan**: Full scan happens via `db:runIncrementalScan` when the Scan button in the groups panel
-  is clicked, or when the folders dialog closes with changes. Each folder is independently try/caught
-  and `runIncrementalScan` also removes DB entries for files that no longer exist on disk.
+* **Theater mode**: Clicking or double-clicking the cover art in the detail panel (with or
+  without cover art — the ♫ placeholder is clickable too) or double-clicking the track info in
+  the now-playing bar opens a fullscreen overlay with cover art, playback controls, and
+  prev/next navigation.
+* **Scan**: Full scan happens via the centralised `runFullScan()` in `src/scanner.ts` when the
+  Scan button in the groups panel is clicked, or when the folders dialog closes with changes.
+  The scan (a) prunes DB entries from disabled/removed folders via `allowedPaths`, (b) discovers
+  new files in enabled folders, and (c) re-reads tags for files whose timestamps changed.
+  Each folder is independently try/caught and `runIncrementalScan` also removes DB entries for
+  files that no longer exist on disk — but only when their surrounding tree is verifiably
+  reachable: missing files are grouped by their nearest existing ancestor directory and deleted
+  only when a sibling file under that ancestor still stats or the ancestor lists non-empty
+  content. Unreachable trees (unmounted/sleeping NAS, EIO) keep their rows — including ratings
+  and play counts — until a later successful scan; permanently removed shares must be removed
+  deliberately via the folders dialog.
+  After the tag queue finishes, a single `library:changed` event triggers a full UI refresh
+  with all newly read metadata at once. The status bar shows a single unified line:
+  total tracks in DB, removed count, and error count (if any).
+* **DLNA scan**: Enabled DLNA servers (`dlna-servers` setting, selected via checkbox in the
+  folders dialog after SSDP network discovery) have their audio libraries recursively enumerated
+  and synced via `dlna:scan` — always AFTER all filesystem scans completed, because remote
+  browsing is much slower than local disk access. DLNA tracks play through `<audio>` directly
+  from their stream URL (`http(s)://` paths bypass the `file://` conversion). Unchecking all
+  servers removes all imported DLNA tracks on the next full scan.
 * **Cover art**: Read on-the-fly via `db:getCoverArt` — tries embedded picture first (via
   `music-metadata`), then searches the file's directory for the first filename matching
   `^(folder|cover|front)\.(jpg|jpeg|png)$`. JPEG/PNG are identified by magic bytes. Never
@@ -462,6 +988,43 @@ to settings.
 * **Problematic files**: Exported to `/tmp/musicpenguin_problematic_files.txt` and auto-opened in
   the system's default text editor (via `xdg-open`). Falls back to `code`/`codium`, then
   desktop-specific editors (`kate` on KDE, `gedit` on GNOME).
+
+## Media Keys
+
+Hardware media keys (play/pause, next track, previous track) are handled via two
+independent layers:
+
+1. **MPRIS (D-Bus)** — the standard Linux mechanism. Registers MusicPenguin on the session
+   bus as `org.mpris.MediaPlayer2.MusicPenguin`. Desktop environments route media key
+   presses to the active MPRIS player via D-Bus, bypassing the normal keyboard shortcut
+   system entirely. This is how KDE/GNOME know a media player is running and should
+   receive media key events. State updates (playback status, current track metadata,
+   position, volume, navigation capability) are sent from the renderer to the main
+   process via the `mpris:updateState` IPC channel whenever playback state changes.
+
+2. **keydown (renderer)** — DOM-level `document.addEventListener("keydown", ...)` fallback
+   that checks `event.code` for media key codes. Catches any key events that reach the
+   renderer's DOM.
+
+Note: Electron's `globalShortcut` API does **not** support media key names on Linux
+(`MediaPlayPause`, `MediaTrackNext`, `MediaTrackPrevious` all fail to register), so it is
+not used. The `before-input-event` approach was also found to not reliably fire for media
+keys on KDE.
+
+All layers send the same `media-key` IPC messages (`play-pause`, `play`, `pause`,
+`stop`, `next`, `previous`) to the renderer, which routes them to the existing playback
+functions (`togglePlayPause`, `onNext`, `onPrev`). The handler in `now-playing.ts` is
+idempotent — duplicate events from multiple layers are harmless since toggle/state
+functions are naturally safe to call multiple times.
+
+## Debug Log
+
+When enabled in Settings, writes timestamped diagnostic messages to
+`~/.config/musicpenguin.log`. Covers MPRIS events, media key IPC, and keydown events.
+Disabled by default (`"debug-log": false` in settings). The renderer logs via
+`debugLog()` from `src/debug-log.ts` (sends IPC to the main process). The main process
+logs directly to the file using its own `debugLog()` helper, reading the setting on each
+write to allow toggling without restart.
 
 ## TypeScript Strictness
 
@@ -484,13 +1047,13 @@ script applies `data-theme` before the page renders to avoid flash.
 
 All user-visible strings go through `t()` in `src/i18n/index.ts`. Lookup keys are the English
 source strings themselves; `en-us` needs no dictionary, other languages provide a translation map
-under `src/i18n/` (`de-de`, `fr-fr`). Dynamic text uses `$1`, `$2`, ... placeholders, e.g.
-`t("Loaded $1 $2 from library.", 5, "files")`.
+under `src/i18n/` (`de-de`, `fr-fr`, `es-es`). Dynamic text uses `$1`, `$2`, ... placeholders, e.g.
+`t("$1 $2 in MusicPenguin database.", 5, "files")`.
 
 On startup the language is resolved with this precedence:
 
 1. Saved `language` in musicpenguin-settings.json
-2. OS locale (`app.getLocale()` — `de` → `de-de`, `fr` → `fr-fr`, otherwise `en-us`)
+2. OS locale (`app.getLocale()` — `de` → `de-de`, `fr` → `fr-fr`, `es` → `es-es`, otherwise `en-us`)
 3. Default: `en-us`
 
 The chosen language is passed as `?lang=` query parameter when loading `index.html`, so the page

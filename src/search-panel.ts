@@ -7,9 +7,7 @@ let regexMode = false;
 
 async function persistState(): Promise<void> {
   try {
-    const data = await window.electronAPI.loadSettings();
     await window.electronAPI.saveSettings({
-      ...(data || {}),
       "search-query": searchQuery,
       "search-regex": regexMode,
       "search-tag-columns": Object.fromEntries(SEARCH_TAG_IDS.map((id) => [id, (document.getElementById(id) as HTMLInputElement)?.checked ?? true])),
@@ -41,6 +39,11 @@ export async function initSearchPanel(
   } catch { /* ignore */ }
 
   validateRegex();
+  updateSearchBtn();
+
+  function updateSearchBtn(): void {
+    searchBtn.disabled = !searchInput.value.trim();
+  }
 
   for (const tagId of SEARCH_TAG_IDS) {
     const cb = document.getElementById(tagId) as HTMLInputElement | null;
@@ -75,11 +78,13 @@ export async function initSearchPanel(
   searchInput.addEventListener("input", () => {
     searchQuery = searchInput.value;
     validateRegex();
+    updateSearchBtn();
     if (searchTimer) clearTimeout(searchTimer);
     searchTimer = setTimeout(() => persistState(), 500);
   });
 
   function runSearch(): void {
+    if (!searchInput.value.trim()) return;
     if (searchInput.classList.contains("regex-invalid")) {
       alert(t("Invalid regular expression."));
       return;

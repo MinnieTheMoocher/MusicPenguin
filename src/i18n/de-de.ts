@@ -14,7 +14,7 @@ export const deDE: ITranslate = {
   label: "Deutsch (German)",
   messages: {
     // Groups / main headings
-    "All Files": "Alle Dateien",
+    "All Tracks": "Alle Titel",
     "Search Result": "Suchergebnis",
     "Most Played": "Meistgespielt",
     "Groups": "Gruppen",
@@ -28,9 +28,9 @@ export const deDE: ITranslate = {
     // Table / form columns
     "Play Count": "Anzahl Wiedergaben",
     "Title": "Titel",
-    "Artist": "Interpret",
+    "Artist": "Künstler",
     "Album": "Album",
-    "Album Artist": "Album-Interpret",
+    "Album Artist": "Album-Künstler",
     "Composer": "Komponist",
     "Conductor": "Dirigent",
     "Year": "Jahr",
@@ -38,6 +38,7 @@ export const deDE: ITranslate = {
     "Rating": "Bewertung",
     "Duration": "Dauer",
     "Path": "Pfad",
+    "BPM": "BPM",
     "Disc No": "Disc-Nr.",
     "Track No": "Track-Nr.",
     "Comment": "Kommentar",
@@ -53,8 +54,12 @@ export const deDE: ITranslate = {
     "Show Problematic Files": "Problemfälle anzeigen",
     "Cancel Tag Scanning": "Tag-Scan abbrechen",
     "Cancel": "Abbrechen",
+    "Empty MusicPenguin Library": "MusicPenguin-Bibliothek leeren",
+    "Danger Zone": "Gefahrenzone",
+    "Yes, empty it": "Ja, leeren",
+    "Are you sure to empty the MusicPenguin library? This will mean you have to scan your folders or audio servers again for audio files, and you will lose all your ratings and play counts. Your selected audio folders and servers will be preserved, though, as they are not part of the library but your user settings. You can scan them again to re-fill your database.": "Sind Sie sicher, dass Sie die MusicPenguin-Bibliothek leeren möchten? Dann müssen Sie Ihre Ordner oder Audio-Server erneut nach Audiodateien durchsuchen, und Sie verlieren alle Ihre Bewertungen und Wiedergabezähler. Ihre ausgewählten Audioordner und -server bleiben jedoch erhalten, da sie nicht Teil der Bibliothek, sondern Ihrer Benutzereinstellungen sind. Sie können sie erneut scannen, um Ihre Datenbank wieder zu füllen.",
     "Close": "Schließen",
-    "Add Music Folder": "Musikordner hinzufügen",
+    "Add Audio Folder": "Audioordner hinzufügen",
     "RegEx Mode": "RegEx-Modus",
     "Play Playlist": "Wiedergabeliste abspielen",
     "Pause Playlist": "Wiedergabeliste pausieren",
@@ -64,6 +69,8 @@ export const deDE: ITranslate = {
     "Clear Playlist": "Wiedergabeliste leeren",
     "Save Playlist": "Wiedergabeliste speichern",
     "Load Playlist": "Wiedergabeliste laden",
+    "Playlist: Drop tracks here": "Wiedergabeliste: Titel hierher ziehen",
+    "Total time: $1": "Gesamtzeit: $1",
     "Repeat All": "Alle wiederholen",
     "Repeat 1": "Einzeltitel wiederholen",
     "Repeat Off": "Wiederholung aus",
@@ -86,12 +93,15 @@ export const deDE: ITranslate = {
 
     // Context menus
     "Show in Folder": "Im Ordner anzeigen",
-    "Play in VLC": "In VLC abspielen",
+    "Play in $1": "In $1 abspielen",
     "Copy Path": "Pfad kopieren",
     "Rescan Tags": "Tags erneut lesen",
     "Goto Album": "Zum Album",
     "Goto Folder": "Zum Ordner",
+    "Goto Artist": "Zum Künstler",
+    "Goto Composer": "Zum Komponist",
     "Sort by:": "Sortieren nach:",
+    "Artist, Album, TrackNo": "Künstler, Album, Track-Nr.",
     "Sort ascending": "aufsteigend",
     "Sort descending": "absteigend",
     "Copy": "Kopieren",
@@ -102,16 +112,36 @@ export const deDE: ITranslate = {
     // Settings
     "Dark Mode": "Dunkler Modus",
     "Language": "Sprache",
+    "Debug Log": "Debug-Log",
+    "External Player": "Externer Player",
+    "Minimum rating required when playing automatically": "Nötige Mindestbewertung bei automatischer Wiedergabe",
+    "No limit": "Kein Limit",
+    "$1 star": "$1 Stern",
+    "$1 stars": "$1 Sterne",
+    "Place main playback bar": "Haupt-Wiedergabeleiste platzieren",
+    "Top": "Oben",
+    "Bottom": "Unten",
 
     // Folders dialog
     "Choose Folders with Audio Files": "Ordner mit Audiodateien auswählen",
+    "Folders on this computer that are scanned for audio files": "Ordner auf diesem Computer, die nach Audiodateien durchsucht werden",
     "+ Add Folder": "+ Ordner hinzufügen",
     "No folders added yet.": "Noch keine Ordner hinzugefügt.",
     "No folders configured.": "Keine Ordner konfiguriert.",
     "No folders configured. Open settings to add folders.": "Keine Ordner konfiguriert. Öffnen Sie die Einstellungen, um Ordner hinzuzufügen.",
-    "No enabled folders to scan. Check some folders first.": "Keine aktivierten Ordner zum Scannen. Aktivieren Sie zuerst einige Ordner.",
+
     "Scanning...": "Scannen...",
     "Scan failed: $1": "Scan fehlgeschlagen: $1",
+
+    // DLNA audio servers, shown to users as plain "audio servers"
+    "Audio Server(s) in your network (read-only)": "Audio-Server in Ihrem Netzwerk (nur-Lesen)",
+    "File-System Folders": "Dateisystem-Ordner",
+    "Audio servers found on this network": "gefundene Audio-Server",
+    "Enabled": "Aktiviert",
+    "Scanning audio server $1: $2 $3": "Durchsuche Audio-Server $1: $2 $3",
+    "Audio server scan complete.": "Scan des Audio-Servers abgeschlossen.",
+    "Total tracks: $1.": "Titel gesamt: $1.",
+    "Audio server scan failed: $1": "Scan des Audio-Servers fehlgeschlagen: $1",
 
     // Status bar / scanning
     "Loading folders...": "Ordner laden...",
@@ -119,49 +149,50 @@ export const deDE: ITranslate = {
     "Finding files in: $1": "Suche Dateien in: $1",
     "Found $1 $2. Reading tags...": "$1 $2 gefunden. Tags werden gelesen...",
     "No new files. Scanning tags for untagged entries...": "Keine neuen Dateien. Prüfe ungetaggte Dateien auf neue Tags...",
-    "Total files: $1. Added: $2.": "Dateien gesamt: $1. Neu: $2.",
     "Total files: $1.": "Dateien gesamt: $1.",
+    "Added: $1.": "Neu: $1",
     "Errors: $1.": "Fehler: $1.",
-    "Removed $1 missing $2.": "$1 fehlende $2 entfernt.",
-    "Loaded $1 $2 from library.": "$1 $2 aus der Bibliothek geladen.",
-    "Loaded $1 $2 from library. Tag scanning stopped.": "$1 $2 aus der Bibliothek geladen. Tag-Scan gestoppt.",
-    "Loaded $1 $2 from library. Tag scanning complete.": "$1 $2 aus der Bibliothek geladen. Tag-Scan abgeschlossen.",
+    "Removed: $1.": "Entfernt: $1.",
+    "$1 $2 in MusicPenguin library.": "$1 $2 in der MusicPenguin-Bibliothek.",
+    "Tag scanning stopped.": "Tag-Scan gestoppt.",
+    "Tag scanning complete.": "Tag-Scan abgeschlossen.",
     "Reading tags $1 $2": "Tags werden gelesen $1 $2",
     "Stopping...": "Wird gestoppt...",
     "file": "Datei",
     "files": "Dateien",
 
     // Search
-    "Search library...": "Bibliothek durchsuchen...",
-    "Enter a search term first.": "Bitte zuerst einen Suchbegriff eingeben.",
+    "Search...": "Suchen...",
     "Invalid regular expression.": "Ungültiger regulärer Ausdruck.",
     "Search on $1": "Suche bei $1",
 
     // Now playing / playback
     "No track selected": "Kein Titel ausgewählt",
     "Cannot play \"$1\"": "\"$1\" kann nicht abgespielt werden",
-    "Cannot play \"$1\"\n\nInstall VLC to play this file format.": "\"$1\" kann nicht abgespielt werden.\n\nInstallieren Sie VLC, um dieses Dateiformat abzuspielen.",
+    "Cannot play \"$1\"\n\nInstall an external player like VLC to play this file format.": "\"$1\" kann nicht abgespielt werden.\n\nInstallieren Sie einen externen Player wie VLC, um dieses Dateiformat abzuspielen.",
     "Unknown file": "Unbekannte Datei",
     "This file appears to be mp3 data embedded in a wav container, unplayable by MusicPenguin.": "Diese Datei enthält offenbar MP3-Daten in einem WAV-Container und kann von MusicPenguin nicht abgespielt werden.",
     "Very sorry, but this file appears to be unplayable by MusicPenguin.": "Diese Datei kann leider nicht von MusicPenguin abgespielt werden.",
     "Try to investigate its format with e.g. ffprobe or convert it with e.g. ffmpeg.": "Untersuchen Sie das Format z.B. mit ffprobe oder konvertieren Sie es z.B. mit ffmpeg.",
-    "Try to play in VLC instead": "Stattdessen in VLC abspielen",
+    "Try to play in $1 instead": "Stattdessen in $1 abspielen",
     "OK": "OK",
 
     // File operations
     "Failed to move file:\n$1": "Datei konnte nicht verschoben werden:\n$1",
 
+    // Detail panel
+    "Attributes of remote DLNA tracks cannot be edited. Only tracks stored on the local file system can.": "Attribute von DLNA-Titeln können nicht bearbeitet werden. Dies ist nur bei im lokalen Dateisystem gespeicherten Titeln möglich.",
+
     // Delete dialog
     "Where do you want to delete this file?": "Wo soll diese Datei gelöscht werden?",
     "Where do you want to delete these $1 files?": "Wo sollen diese $1 Dateien gelöscht werden?",
-    "From Database": "Aus der Datenbank",
+    "From Library": "Aus der Bibliothek",
     "In File System": "Im Dateisystem",
 
     // Problematic files
     "No problematic files found.": "Keine problematischen Dateien gefunden.",
-    "$1 problematic $2 written to $3 and opened in editor.": "$1 $2 mit Problemen nach $3 geschrieben und im Editor geöffnet.",
-    "Written $1 problematic $2 to:\n$3\n\nNo editor could be automatically launched. Please open the file manually.": "$1 $2 mit Problemen geschrieben nach:\n$3\n\nKein Editor konnte automatisch gestartet werden. Bitte öffnen Sie die Datei manuell.",
-    "$1 problematic $2 written to $3.": "$1 $2 mit Problemen nach $3 geschrieben.",
+    "1 problematic file, see $1": "1 problematische Datei, siehe $1",
+    "$1 problematic files, see $2": "$1 problematische Dateien, siehe $2",
 
     // About
     "About MusicPenguin": "Über MusicPenguin",

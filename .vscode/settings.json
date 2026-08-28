@@ -8,6 +8,15 @@
   "files.trimTrailingWhitespace": true,
   "files.insertFinalNewline": true,
 
+  "editor.tabSize": 2,
+  "editor.indentSize":"tabSize",
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "editor.formatOnType": false,
+  "editor.formatOnPaste": false,
+  "editor.formatOnSave": false,
+
   "task.autoDetect": "off",
 
   "cSpell.enabled": true,
@@ -17,10 +26,14 @@
   "cSpell.words": [
     "allfiles",
     "APIC",
+    "autoplay",
+    "beautifications",
     "beforeunload",
     "browsable",
+    "coverart",
     "Crashpad",
     "crossfade",
+    "dbus",
     "Discogs",
     "DLNA",
     "dpkg",
@@ -38,14 +51,17 @@
     "Mayall",
     "mousemove",
     "mouseup",
+    "MPRIS",
     "MusicBrainz",
     "musicpenguin",
     "overscan",
     "playcount",
+    "playmode",
     "recalc",
     "rescan",
     "setuid",
     "sqljs",
+    "SSDP",
     "subdirs",
     "theatermode",
     "unscanned",

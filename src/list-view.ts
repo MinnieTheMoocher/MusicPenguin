@@ -1,12 +1,20 @@
 import { ListItem } from "./types.js";
 import { audio } from "./audio.js";
 import { t } from "./i18n/index.js";
+import { noteExternalPlays } from "./now-playing.js";
+import { getExternalPlayer, getExternalPlayerDisplayName } from "./external-player.js";
+import { DEFAULT_COLUMN_WIDTHS } from "./config.js";
+import { ARTIST_ALBUM_TRACKNO, SORTING_MODES } from "./sorting.js";
 
 let listSortColumn = "";
 let listSortDirection: "asc" | "desc" = "asc";
+let activeSortingMode: string | null = null;
 let onSortCb: ((column: string, direction: "asc" | "desc") => void) | null = null;
+let onSortingModeCb: ((id: string) => void) | null = null;
 let onGotoAlbumCb: ((item: ListItem) => void) | null = null;
 let onGotoFolderCb: ((item: ListItem) => void) | null = null;
+let onGotoArtistCb: ((item: ListItem) => void) | null = null;
+let onGotoComposerCb: ((item: ListItem) => void) | null = null;
 
 function menuKeyToSortKey(key: string): string {
   switch (key) {
@@ -17,7 +25,7 @@ function menuKeyToSortKey(key: string): string {
   }
 }
 
-function ratingToStarCount(rating: number): number {
+export function ratingToStarCount(rating: number): number {
   if (rating === 0) return 0;
   if (rating > 0 && rating <= 1) return -1;
   if (rating < 26) return 0.5;
@@ -81,6 +89,10 @@ function starCountToDbValue(stars: number): number {
   return 243;
 }
 
+/* Hover-preview sentinel for the "hated" state — distinct from -1,
+   which marks "cursor outside any slot". */
+const HATE_PREVIEW = -2;
+
 function highlightStars(el: HTMLElement, count: number): void {
   const starNodes = el.querySelectorAll<HTMLElement>(".star, .star-half");
   const full = Math.floor(count);
@@ -106,10 +118,18 @@ function highlightStars(el: HTMLElement, count: number): void {
 
 function setRatingValue(el: HTMLElement, path: string, dbVal: number): void {
   window.electronAPI.setRating(path, dbVal);
+  /* Keep the virtual list's own model in sync — otherwise scrolling away
+     and back (or any repopulation) restores the previous rating. */
+  for (const item of allItems) {
+    if (item.trackPath === path) item.rating = dbVal;
+  }
   for (const target of document.querySelectorAll<HTMLElement>(`[data-track-path="${path}"]`)) {
     target.dataset.rating = String(dbVal);
     target.innerHTML = renderRating(dbVal);
   }
+  /* Let other modules sync their models (main list data, playlist, ...)
+     so the new rating survives navigation, re-sorting and re-renders. */
+  document.dispatchEvent(new CustomEvent("rating-updated", { detail: { path, rating: dbVal } }));
 }
 
 export function setupRatingHover(el: HTMLElement, rating: number, trackPath?: string): void {
@@ -124,16 +144,24 @@ export function setupRatingHover(el: HTMLElement, rating: number, trackPath?: st
       if (idx === -1) return;
       const rect = target.getBoundingClientRect();
       const relX = (e.clientX - rect.left) / rect.width;
+      /* Far-left quarter of the first slot previews the "hated" state;
+         a hated emoji under the cursor counts as that zone too, which
+         keeps the preview stable while it is shown. */
+      const hateZone = target.classList.contains("star-hated") || (idx === 0 && relX < 0.25);
       let starCount: number;
-      if (idx === 0 && relX < 0.25) {
-        starCount = 0;
+      if (hateZone) {
+        starCount = HATE_PREVIEW;
       } else {
         const midX = rect.left + rect.width / 2;
         starCount = idx + (e.clientX >= midX ? 1 : 0.5);
       }
       if (starCount !== hoveredStarCount) {
         hoveredStarCount = starCount;
-        highlightStars(el, starCount);
+        if (starCount === HATE_PREVIEW) {
+          el.innerHTML = renderRating(1);
+        } else {
+          highlightStars(el, starCount);
+        }
       }
     });
     el.addEventListener("mouseleave", () => {
@@ -152,17 +180,16 @@ export function setupRatingHover(el: HTMLElement, rating: number, trackPath?: st
       if (!path) return;
       const rect = target.getBoundingClientRect();
       const relX = (e.clientX - rect.left) / rect.width;
-      let clickedStars: number;
-      if (idx === 0 && relX < 0.25) {
-        clickedStars = 0;
-      } else {
-        const midX = rect.left + rect.width / 2;
-        clickedStars = idx + (e.clientX >= midX ? 1 : 0.5);
+      /* Far-left quarter of the first slot (or the hated emoji itself)
+         assigns the "hated" rating. Clearing a track back to
+         "(unrated)" is only offered via the context menu. */
+      if (target.classList.contains("star-hated") || (idx === 0 && relX < 0.25)) {
+        setRatingValue(el, path, 1);
+        return;
       }
-      const currentDb = parseInt(el.dataset.rating || "0", 10);
-      const currentStars = Math.max(0, ratingToStarCount(currentDb));
-      const newStars = Math.abs(clickedStars - currentStars) < 0.25 ? 0 : clickedStars;
-      setRatingValue(el, path, starCountToDbValue(newStars));
+      const midX = rect.left + rect.width / 2;
+      const clickedStars = idx + (e.clientX >= midX ? 1 : 0.5);
+      setRatingValue(el, path, starCountToDbValue(clickedStars));
     });
     el.addEventListener("contextmenu", (e) => {
       e.preventDefault();
@@ -275,9 +302,7 @@ export function setColumnVisibility(list: string[]): void {
 
 async function saveColumnVisibility(): Promise<void> {
   try {
-    const settings = await window.electronAPI.loadSettings();
     await window.electronAPI.saveSettings({
-      ...(settings || {}),
       "hidden-columns": [...hiddenColumns],
     });
   } catch { /* ignore */ }
@@ -287,7 +312,11 @@ export async function loadColumnVisibility(): Promise<void> {
   try {
     const data = await window.electronAPI.loadSettings();
     const hidden = data?.["hidden-columns"] as string[] | undefined;
-    if (Array.isArray(hidden) && hidden.length) setColumnVisibility(hidden);
+    if (Array.isArray(hidden) && hidden.length) {
+      setColumnVisibility(hidden);
+    } else {
+      setColumnVisibility(MENU_COLUMNS.map((c) => c.key).filter((key) => !(key in DEFAULT_COLUMN_WIDTHS)));
+    }
   } catch { /* ignore */ }
 }
 
@@ -365,7 +394,7 @@ function initColumnHeaderMenu(): void {
 function getColumnWidths(): number[] {
   const table = document.getElementById("list-table")!;
   const tr = table.querySelector("thead tr");
-  if (!tr) return [24, 40, 50, 150, 120, 100, 100, 100, 100, 60, 80, 55, 60, 60, 50, 150];
+  if (!tr) return COLUMNS.map((c) => DEFAULT_COLUMN_WIDTHS[c.key] ?? 80);
 
   const widths: number[] = [];
   const cols = tr.children;
@@ -397,8 +426,7 @@ async function saveColumnWidths(): Promise<void> {
     }
   }
   try {
-    const settings = await window.electronAPI.loadSettings();
-    await window.electronAPI.saveSettings({ ...(settings || {}), "column-widths": vals });
+    await window.electronAPI.saveSettings({ "column-widths": vals });
   } catch { /* ignore */ }
 }
 
@@ -698,13 +726,15 @@ function setupDelegation(): void {
     const draggedItem = allItems[di]!;
 
     let allTracks: Array<{ path: string; title: string; artist: string; duration: string }> = [];
-    if (selPaths.size > 0) {
-      for (const p of selPaths) {
-        const t = allItems.find((it) => it.trackPath === p);
-        if (t) allTracks.push({ path: t.trackPath, title: t.title, artist: t.artist, duration: t.duration });
+    /* Drag exactly what the mouse grabbed. The current selection only rides
+       along when it actually contains the grabbed row (multi-row drag);
+       a stale selection from before must NEVER hijack the drag. */
+    if (selPaths.has(draggedItem.trackPath)) {
+      for (const item of allItems) {
+        if (!selPaths.has(item.trackPath)) continue;
+        allTracks.push({ path: item.trackPath, title: item.title, artist: item.artist, duration: item.duration });
       }
-    }
-    if (!allTracks.length) {
+    } else {
       allTracks.push({ path: draggedItem.trackPath, title: draggedItem.title, artist: draggedItem.artist, duration: draggedItem.duration });
     }
     e.dataTransfer!.setData("application/x-musicpenguin-track", JSON.stringify(allTracks));
@@ -740,25 +770,31 @@ function setupDelegation(): void {
     menu.style.top = e.clientY + "px";
 
     if (clickedPath) {
-      const showItem = document.createElement("div");
-      showItem.className = "context-menu-item";
-      showItem.textContent = t("Show in Folder");
-      showItem.addEventListener("click", async () => {
-        closeContextMenu();
-        await window.electronAPI.showInExternalFileExplorer(paths[0]!, false);
-      });
-      menu.appendChild(showItem);
+      /* DLNA rows are stream URLs without a physical file to reveal;
+         in a mixed selection fall back to the first local file. */
+      const firstLocalPath = paths.find((p) => !/^https?:\/\//i.test(p));
+      if (firstLocalPath) {
+        const showItem = document.createElement("div");
+        showItem.className = "context-menu-item";
+        showItem.textContent = t("Show in Folder");
+        showItem.addEventListener("click", async () => {
+          closeContextMenu();
+          await window.electronAPI.showInExternalFileExplorer(firstLocalPath, false);
+        });
+        menu.appendChild(showItem);
+      }
 
       const vlcItem = document.createElement("div");
       vlcItem.className = "context-menu-item";
-      vlcItem.textContent = t("Play in VLC");
+      vlcItem.textContent = t("Play in $1", getExternalPlayerDisplayName());
       vlcItem.addEventListener("click", async () => {
         closeContextMenu();
         selPaths.clear();
         for (const p of paths) selPaths.add(p);
         populate();
         audio.pause();
-        await window.electronAPI.openInVlc(paths);
+        const opened = await window.electronAPI.openInExternalPlayer(paths, getExternalPlayer());
+        if (opened) noteExternalPlays(paths);
       });
       menu.appendChild(vlcItem);
 
@@ -786,9 +822,12 @@ function setupDelegation(): void {
       sep1.className = "playlist-sort-sep";
       menu.appendChild(sep1);
 
+      let hasGotoItems = false;
+
       if (onGotoAlbumCb && clickedPath) {
         const clickedItem = allItems.find((it) => it.trackPath === clickedPath);
         if (clickedItem?.album) {
+          hasGotoItems = true;
           const gotoAlbumItem = document.createElement("div");
           gotoAlbumItem.className = "context-menu-item";
           gotoAlbumItem.textContent = t("Goto Album");
@@ -800,21 +839,54 @@ function setupDelegation(): void {
         }
       }
 
-      if (onGotoFolderCb && clickedPath) {
+      if (onGotoFolderCb && firstLocalPath) {
+        hasGotoItems = true;
         const gotoFolderItem = document.createElement("div");
         gotoFolderItem.className = "context-menu-item";
         gotoFolderItem.textContent = t("Goto Folder");
         gotoFolderItem.addEventListener("click", () => {
           closeContextMenu();
-          const item = allItems.find((it) => it.trackPath === clickedPath);
+          const item = allItems.find((it) => it.trackPath === firstLocalPath);
           if (item) onGotoFolderCb!(item);
         });
         menu.appendChild(gotoFolderItem);
       }
 
-      const sep2 = document.createElement("hr");
-      sep2.className = "playlist-sort-sep";
-      menu.appendChild(sep2);
+      if (onGotoArtistCb && clickedPath) {
+        const clickedItem = allItems.find((it) => it.trackPath === clickedPath);
+        if (clickedItem?.artist) {
+          hasGotoItems = true;
+          const gotoArtistItem = document.createElement("div");
+          gotoArtistItem.className = "context-menu-item";
+          gotoArtistItem.textContent = t("Goto Artist");
+          gotoArtistItem.addEventListener("click", () => {
+            closeContextMenu();
+            if (clickedItem) onGotoArtistCb!(clickedItem);
+          });
+          menu.appendChild(gotoArtistItem);
+        }
+      }
+
+      if (onGotoComposerCb && clickedPath) {
+        const clickedItem = allItems.find((it) => it.trackPath === clickedPath);
+        if (clickedItem?.composer) {
+          hasGotoItems = true;
+          const gotoComposerItem = document.createElement("div");
+          gotoComposerItem.className = "context-menu-item";
+          gotoComposerItem.textContent = t("Goto Composer");
+          gotoComposerItem.addEventListener("click", () => {
+            closeContextMenu();
+            if (clickedItem) onGotoComposerCb!(clickedItem);
+          });
+          menu.appendChild(gotoComposerItem);
+        }
+      }
+
+      if (hasGotoItems) {
+        const sep2 = document.createElement("hr");
+        sep2.className = "playlist-sort-sep";
+        menu.appendChild(sep2);
+      }
     }
 
     if (onSortCb) {
@@ -822,6 +894,27 @@ function setupDelegation(): void {
       heading.className = "playlist-sort-heading";
       heading.textContent = t("Sort by:");
       menu.appendChild(heading);
+
+      for (const mode of SORTING_MODES) {
+        if (mode.id !== ARTIST_ALBUM_TRACKNO) continue;
+        const item = document.createElement("div");
+        item.className = "context-menu-item playlist-sort-item"
+          + (activeSortingMode === mode.id ? " active" : "");
+
+        const label = document.createElement("span");
+        label.className = "playlist-sort-label";
+        label.textContent = t(mode.name);
+        item.appendChild(label);
+
+        item.addEventListener("click", () => {
+          closeContextMenu();
+          activeSortingMode = mode.id;
+          listSortColumn = "";
+          listSortDirection = "asc";
+          onSortingModeCb!(mode.id);
+        });
+        menu.appendChild(item);
+      }
 
       for (const col of MENU_COLUMNS) {
         const sortKey = menuKeyToSortKey(col.key);
@@ -839,6 +932,7 @@ function setupDelegation(): void {
         ascBtn.title = t("Sort ascending");
         ascBtn.addEventListener("click", () => {
           closeContextMenu();
+          activeSortingMode = null;
           listSortColumn = sortKey;
           listSortDirection = "asc";
           onSortCb!(sortKey, "asc");
@@ -851,6 +945,7 @@ function setupDelegation(): void {
         descBtn.title = t("Sort descending");
         descBtn.addEventListener("click", () => {
           closeContextMenu();
+          activeSortingMode = null;
           listSortColumn = sortKey;
           listSortDirection = "desc";
           onSortCb!(sortKey, "desc");
@@ -1145,9 +1240,9 @@ function showDeleteDialog(paths: string[]): void {
 
   const dbBtn = document.createElement("button");
   dbBtn.className = "delete-dialog-btn";
-  dbBtn.textContent = t("From Database");
+  dbBtn.textContent = t("From Library");
   dbBtn.addEventListener("click", async () => {
-    overlay.remove();
+    close();
     await window.electronAPI.deleteFiles(paths);
     onDeleteCb?.(paths);
   });
@@ -1156,7 +1251,7 @@ function showDeleteDialog(paths: string[]): void {
   diskBtn.className = "delete-dialog-btn delete-dialog-btn-danger";
   diskBtn.textContent = t("In File System");
   diskBtn.addEventListener("click", async () => {
-    overlay.remove();
+    close();
     await window.electronAPI.deleteFilesFromDisk(paths);
     onDeleteCb?.(paths);
   });
@@ -1164,7 +1259,7 @@ function showDeleteDialog(paths: string[]): void {
   const cancelBtn = document.createElement("button");
   cancelBtn.className = "delete-dialog-btn";
   cancelBtn.textContent = t("Cancel");
-  cancelBtn.addEventListener("click", () => overlay.remove());
+  cancelBtn.addEventListener("click", () => close());
 
   btnRow.appendChild(dbBtn);
   btnRow.appendChild(diskBtn);
@@ -1175,12 +1270,18 @@ function showDeleteDialog(paths: string[]): void {
   overlay.appendChild(box);
   document.body.appendChild(overlay);
 
+  const onEsc = (e: KeyboardEvent) => {
+    if (e.key === "Escape" && overlay.parentElement) close();
+  };
+  function close() {
+    overlay.remove();
+    document.removeEventListener("keydown", onEsc);
+  }
+  document.addEventListener("keydown", onEsc);
+
   overlay.addEventListener("click", (e) => {
-    if (e.target === overlay) overlay.remove();
+    if (e.target === overlay) close();
   });
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && overlay.parentElement) overlay.remove();
-  }, { once: true });
 }
 
 /* ── Public API ─────────────────────────────────────────────── */
@@ -1192,7 +1293,11 @@ export interface VirtualListController {
   refreshRow(path: string): void;
   setAfterRender(cb: () => void): void;
   setSortState(column: string, direction: "asc" | "desc"): void;
+  setSortingMode(id: string | null): void;
   selectAndScrollTo(path: string): ListItem | null;
+  hasSelection(): boolean;
+  captureSelectionAnchor(): { path: string; offset: number } | null;
+  restoreSelectionAnchor(anchor: { path: string; offset: number }): void;
 }
 
 export function initVirtualList(
@@ -1200,15 +1305,21 @@ export function initVirtualList(
   onSelect: (item: ListItem, idx: number) => void,
   onDblClick?: (item: ListItem, idx: number) => void,
   onSort?: (column: string, direction: "asc" | "desc") => void,
+  onSortingMode?: (id: string) => void,
   onGotoAlbum?: (item: ListItem) => void,
   onGotoFolder?: (item: ListItem) => void,
+  onGotoArtist?: (item: ListItem) => void,
+  onGotoComposer?: (item: ListItem) => void,
 ): VirtualListController {
   tbody = container;
   onSelectCb = onSelect;
   onDblClickCb = onDblClick ?? null;
   onSortCb = onSort ?? null;
+  onSortingModeCb = onSortingMode ?? null;
   onGotoAlbumCb = onGotoAlbum ?? null;
   onGotoFolderCb = onGotoFolder ?? null;
+  onGotoArtistCb = onGotoArtist ?? null;
+  onGotoComposerCb = onGotoComposer ?? null;
 
   const table = container.closest("table") || container.parentElement;
   const panel = container.closest("#list-panel") || table?.closest("#list-panel");
@@ -1316,6 +1427,15 @@ export function initVirtualList(
     setSortState(column: string, direction: "asc" | "desc"): void {
       listSortColumn = column;
       listSortDirection = direction;
+      activeSortingMode = null;
+    },
+
+    setSortingMode(id: string | null): void {
+      activeSortingMode = id;
+      if (id) {
+        listSortColumn = "";
+        listSortDirection = "asc";
+      }
     },
 
     selectAndScrollTo(path: string): ListItem | null {
@@ -1331,6 +1451,34 @@ export function initVirtualList(
         updateScrollbar();
       }
       return allItems[idx]!;
+    },
+
+    hasSelection(): boolean {
+      return selPaths.size > 0;
+    },
+
+    /* Viewport anchor of the topmost selected row: its path plus the
+       row offset from the window start. Captured BEFORE a re-sort so
+       the row can be placed back at the same vertical position after
+       the new order is in effect. */
+    captureSelectionAnchor(): { path: string; offset: number } | null {
+      if (selPaths.size === 0) return null;
+      for (let i = 0; i < allItems.length; i++) {
+        const it = allItems[i]!;
+        if (selPaths.has(it.trackPath)) {
+          return { path: it.trackPath, offset: i - firstIdx };
+        }
+      }
+      return null;
+    },
+
+    /* Scrolls (never repopulates order) so the anchored path sits at
+       the viewport offset it had before the sort, clamped to the valid
+       scroll range. A no-op if the path left the list. */
+    restoreSelectionAnchor(anchor: { path: string; offset: number }): void {
+      const idx = allItems.findIndex((it) => it.trackPath === anchor.path);
+      if (idx === -1) return;
+      scrollToIndex(idx - anchor.offset);
     },
   };
 }

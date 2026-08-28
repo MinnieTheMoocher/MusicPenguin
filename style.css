@@ -110,9 +110,32 @@ h2 {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 4px 12px;
+  padding: 0px 12px 4px 12px;
   background: var(--now-playing-bg);
   border-bottom: 1px solid var(--border);
+}
+
+/* ── Playback bar at the BOTTOM (setting "Place main playback bar")
+   Flex order moves it directly above the status bar. The crossing
+   handles lose the now-playing offset because the main area then
+   starts at the very top of the window. */
+#app.np-bottom #main-area {
+  order: 1;
+}
+
+#app.np-bottom #now-playing {
+  order: 4;
+  border-bottom: none;
+  border-top: 1px solid var(--border);
+}
+
+#app.np-bottom #status-bar {
+  order: 5;
+}
+
+#app.np-bottom #handle,
+#app.np-bottom #handle-right {
+  top: calc(var(--list-h) - 4.5px);
 }
 
 #now-playing-info {
@@ -132,34 +155,40 @@ h2 {
   gap: 8px;
 }
 
-#play-btn,
 #prev-btn,
-#next-btn {
+#play-btn,
+#next-btn,
+#repeat-btn,
+#shuffle-btn {
   background: none;
   border: none;
-  font-size: 1.7rem;
+  font-size: 1.15rem;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--text);
   flex-shrink: 0;
+  padding: 2px 4px;
+  border-radius: 4px;
   transition: text-shadow 0.2s;
 }
 
-#play-btn:hover,
 #prev-btn:hover,
-#next-btn:hover {
+#play-btn:hover,
+#next-btn:hover,
+#repeat-btn:hover,
+#shuffle-btn:hover {
   text-shadow: 0 0 10px var(--text);
 }
 
-#prev-btn,
-#next-btn {
-  font-size: 1.15rem;
+#play-btn {
+  font-size: 1.7rem;
 }
 
 #prev-btn:disabled,
-#next-btn:disabled {
+#next-btn:disabled,
+#search-btn:disabled {
   opacity: 0.3;
   cursor: default;
 }
@@ -169,7 +198,7 @@ h2 {
   font-size: 0.78rem;
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
-  width: 32px;
+  min-width: 40px;
   text-align: center;
   flex-shrink: 0;
 }
@@ -194,28 +223,8 @@ h2 {
   position: relative;
 }
 
-#progress-hover-time {
-  position: absolute;
-  top: -22px;
-  transform: translateX(-50%);
-  font-size: 0.72rem;
-  color: var(--text);
-  background: var(--dialog-bg);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 1px 5px;
-  white-space: nowrap;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.1s;
-}
-
-#progress-track:hover #progress-hover-time {
-  opacity: 1;
-}
-
 #progress-fill::after {
-  content: "";
+  content: var(--pseudo-empty);
   position: absolute;
   right: -6px;
   top: 50%;
@@ -307,16 +316,25 @@ h2 {
   width: var(--groups-w);
   min-width: 200px;
   max-width: 600px;
-  padding: 1rem;
+  padding: 1rem 0 1rem 1rem;
   background: var(--panel-bg);
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+}
+
+#groups-container {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 1rem;
 }
 
 #groups-panel ul {
   list-style: none;
   padding-left: 1rem;
+  outline: none;
 }
 
 #groups-panel li.group-heading {
@@ -342,8 +360,8 @@ h2 {
 }
 
 #groups-panel li .group-cover {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   object-fit: cover;
   border-radius: 3px;
   flex-shrink: 0;
@@ -362,7 +380,7 @@ h2 {
 }
 
 .divider-v::after {
-  content: "";
+  content: var(--pseudo-empty);
   position: absolute;
   inset: 0 2px;
   background: var(--divider);
@@ -433,20 +451,20 @@ h2 {
   display: grid;
   width: max-content;
   grid-template-columns:
-    var(--col-_playing, 1.2rem)
+    var(--col-_playing, 19px)
     var(--col-playcount, 40px)
-    var(--col-trackNo, 65px)
-    var(--col-title, 160px)
-    var(--col-artist, 130px)
-    var(--col-album, 110px)
+    var(--col-trackNo, 40px)
+    var(--col-title, 395px)
+    var(--col-artist, 360px)
+    var(--col-album, 288px)
     var(--col-albumArtist, 110px)
     var(--col-composer, 85px)
     var(--col-conductor, 85px)
     var(--col-year, 55px)
     var(--col-genre, 85px)
     var(--col-bpm, 55px)
-    var(--col-rating, 55px)
-    var(--col-duration, 55px)
+    var(--col-rating, 124px)
+    var(--col-duration, 100px)
     var(--col-ext, 45px)
     var(--col-filename, 110px);
 }
@@ -529,7 +547,7 @@ h2 {
 }
 
 .col-resize-handle::after {
-  content: "";
+  content: var(--pseudo-empty);
   position: absolute;
   inset: 4px 1px;
   background: transparent;
@@ -618,7 +636,7 @@ h2 {
 }
 
 .divider-h::after {
-  content: "";
+  content: var(--pseudo-empty);
   position: absolute;
   inset: 2px 0;
   background: var(--divider);
@@ -640,15 +658,24 @@ h2 {
   text-align: center;
   vertical-align: middle;
 }
+/* The widget always renders the full five-slot scale; CSS decides
+   how much of the hollow tail is visible, in two modes:
+   - Normal mode: the hollow fill-up to the right is always shown
+     (now-playing bar, details dialog, theater overlay) — an unrated
+     track shows five hollow stars, a hated one the emoji plus four.
+   - Decent mode: the hollow fill-up appears on hover only, so the
+     main list stays uncluttered — unrated rows show nothing at rest,
+     a 1-star row just that star, a hated row just the emoji.
+     Locations not listed below default to decent mode (.col-rating). */
 .star-hollow {
   display: none;
 }
-#field-rating:hover .star-hollow,
-#tm-rating-inner:hover .star-hollow,
-.col-rating:hover .star-hollow {
+#now-playing-rating .star-hollow,
+#field-rating .star-hollow,
+#tm-rating-inner .star-hollow {
   display: inline-block;
 }
-#now-playing-rating .star-hollow {
+.col-rating:hover .star-hollow {
   display: inline-block;
 }
 .star-half {
@@ -664,7 +691,6 @@ h2 {
   inset: 0;
   text-align: center;
   line-height: 1.2em;
-  opacity: 0.25;
   pointer-events: none;
 }
 .star-half-fg {
@@ -771,7 +797,7 @@ h2 {
   background: #000;
 }
 #theater-mode::before {
-  content: "";
+  content: var(--pseudo-empty);
   position: absolute;
   inset: 0;
   background: rgba(0, 0, 0, 0.35);
@@ -795,6 +821,16 @@ h2 {
 #theater-mode.tm-transitioning #tm-album-line,
 #theater-mode.tm-transitioning #tm-year {
   opacity: 0;
+}
+/* Emergency kill-switch for all fade animations: applied while making
+   a sudden transition when a fade would not fit into the current or
+   the next track. */
+#theater-mode.tm-no-anim,
+#theater-mode.tm-no-anim *,
+#theater-mode.tm-no-anim *::before,
+#theater-mode.tm-no-anim *::after {
+  transition: none !important;
+  animation: none !important;
 }
 #tm-body {
   display: flex;
@@ -866,10 +902,12 @@ h2 {
 #tm-title {
   font-size: 3.2rem;
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1.3;
   margin-bottom: 0.5rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
   transition: opacity var(--tm-transition-duration);
 }
 #tm-artist {
@@ -906,9 +944,6 @@ h2 {
   display: block;
   width: 6em;
   text-align: left;
-}
-#tm-rating-inner .star-hollow {
-  display: inline-block;
 }
 #tm-controls {
   display: flex;
@@ -965,7 +1000,7 @@ h2 {
   font-size: 0.9rem;
   color: rgba(255, 255, 255, 0.8);
   font-variant-numeric: tabular-nums;
-  width: 38px;
+  min-width: 48px;
   text-align: center;
   flex-shrink: 0;
 }
@@ -986,25 +1021,8 @@ h2 {
   pointer-events: none;
   position: relative;
 }
-#tm-progress-track:hover #tm-progress-hover-time {
-  opacity: 1;
-}
-#tm-progress-hover-time {
-  position: absolute;
-  top: -24px;
-  transform: translateX(-50%);
-  font-size: 0.8rem;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.6);
-  border-radius: 4px;
-  padding: 2px 6px;
-  white-space: nowrap;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.1s;
-}
 #tm-progress-fill::after {
-  content: "";
+  content: var(--pseudo-empty);
   position: absolute;
   right: -6px;
   top: 50%;
@@ -1113,18 +1131,7 @@ h2 {
   min-width: 0;
 }
 
-#detail-form input {
-  margin-top: 2px;
-  padding: 4px 6px;
-  border: 1px solid var(--input-border);
-  border-radius: 4px;
-  font-size: 0.9rem;
-  background: var(--input-bg);
-  color: var(--text);
-  width: 100%;
-  box-sizing: border-box;
-}
-
+#detail-form input,
 #detail-form textarea {
   margin-top: 2px;
   padding: 4px 6px;
@@ -1134,7 +1141,37 @@ h2 {
   font-family: inherit;
   background: var(--input-bg);
   color: var(--text);
+}
+
+/* Central switch for non-editable detail fields (DLNA tracks: metadata
+   comes from the remote server) — muted look for every input/textarea */
+#detail-form.fields-readonly input,
+#detail-form.fields-readonly textarea {
+  color: var(--text-secondary);
+  /* border-style: dashed; */
+}
+
+#detail-form textarea::-webkit-resizer {
+    background:
+        linear-gradient(135deg,
+            transparent 0 40%,
+            var(--border) 40% 48%,
+            transparent 48% 60%,
+            var(--border) 60% 68%,
+            transparent 68% 80%,
+            var(--border) 80% 88%,
+            transparent 88%);
+}
+
+#detail-form input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+#detail-form textarea {
   resize: vertical;
+  /*min-height: 1.7rem;*/ /* vspace+line1+vspace  */
+  min-height: 4.4rem;     /* vspace+line1+vspace+line2+vspace+line3+vspace */
 }
 
 .detail-row {
@@ -1164,6 +1201,7 @@ h2 {
   flex: 1;
   min-width: 0;
 }
+
 #field-rating {
   display: flex;
   align-items: center;
@@ -1180,6 +1218,7 @@ h2 {
   min-width: 100px;
   flex-shrink: 0;
 }
+
 label:has(#field-rating) {
   min-width: 100px;
 }
@@ -1198,7 +1237,7 @@ label:has(#field-rating) {
 }
 
 #search-panel {
-  padding: 1rem 1rem 0.5rem 1rem;
+  padding: 1rem;
   flex-shrink: 0;
 }
 
@@ -1237,7 +1276,7 @@ label:has(#field-rating) {
   border-color: var(--primary);
 }
 .search-tag input[type="checkbox"]:checked::after {
-  content: "✓";
+  content: var(--check-mark);
   position: absolute;
   inset: 0;
   display: flex;
@@ -1256,7 +1295,7 @@ label:has(#field-rating) {
 }
 
 #playlist-panel {
-  padding: 0.5rem 1rem 1rem 1rem;
+  padding: 1rem 1rem 0rem 1rem;
   flex: 1;
   min-height: 0;
   display: flex;
@@ -1327,7 +1366,19 @@ label:has(#field-rating) {
 #playlist-play-btn:not(.enabled),
 #playlist-play-btn:disabled,
 #randomize-btn:not(.enabled),
+#save-playlist-btn:not(.enabled),
 #clear-playlist-btn:not(.enabled) {
+  filter: grayscale(1);
+  opacity: 0.5;
+}
+
+#shuffle-btn.active,
+#repeat-btn.active {
+  color: var(--primary);
+}
+
+#shuffle-btn:not(.active),
+#repeat-btn:not(.active) {
   filter: grayscale(1);
   opacity: 0.5;
 }
@@ -1340,6 +1391,15 @@ label:has(#field-rating) {
   min-height: 0;
   background: var(--input-bg);
   border-radius: 4px;
+}
+
+#playlist-total-time {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  pointer-events: none;
+  padding: 2px 4px;
+  text-align: right;
 }
 
 #playlist-viewport {
@@ -1368,7 +1428,7 @@ label:has(#field-rating) {
 }
 
 #playlist-viewport.playlist-empty::after {
-  content: "drop tracks from main list here";
+  content: var(--playlist-empty-text);
   position: absolute;
   inset: 0;
   display: flex;
@@ -1441,21 +1501,6 @@ label:has(#field-rating) {
   position: relative;
 }
 
-.playlist-item .playlist-cover img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: none;
-}
-
-.playlist-item .playlist-cover img.loaded {
-  display: block;
-}
-
-.playlist-item .playlist-cover img.loaded + .playlist-cover-placeholder {
-  display: none;
-}
-
 .playlist-item .playlist-cover-placeholder {
   color: var(--text-secondary);
   font-size: 1.1rem;
@@ -1467,6 +1512,13 @@ label:has(#field-rating) {
   align-items: center;
   justify-content: center;
   line-height: 1;
+}
+
+.playlist-item .playlist-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 2px;
 }
 
 .playlist-item .playlist-title {
@@ -1604,6 +1656,7 @@ label:has(#field-rating) {
   gap: 8px;
   white-space: nowrap;
   overflow: hidden;
+  position: relative;
 }
 
 #status-text {
@@ -1644,6 +1697,7 @@ label:has(#field-rating) {
   height: 140px;
   object-fit: contain;
   margin: auto auto 0.5rem;
+  padding: 0.5rem 1rem 0 0;
   flex-shrink: 0;
   cursor: pointer;
 }
@@ -1665,6 +1719,7 @@ label:has(#field-rating) {
   width: 144px;
   height: 144px;
   object-fit: contain;
+  cursor: pointer;
 }
 
 #about-app-name {
@@ -1685,14 +1740,18 @@ label:has(#field-rating) {
   text-align: center;
 }
 
-#about-homepage {
+#about-bluesky1,
+#about-bluesky2,
+#about-github1,
+#about-github2 {
   font-size: 0.85rem;
   color: var(--text-secondary);
   text-align: center;
   text-decoration: none;
 }
 
-#about-homepage:hover {
+#about-bluesky2:hover,
+#about-github2:hover {
   color: var(--text-primary);
   text-decoration: underline;
 }
@@ -1703,6 +1762,7 @@ label:has(#field-rating) {
   flex-direction: row;
   justify-content: center;
   gap: 2px;
+  padding-right: 1rem;
 }
 
 #groups-buttons button {
@@ -1798,6 +1858,12 @@ label:has(#field-rating) {
   gap: 1rem;
 }
 
+/* Debug log is developer-only: never visible for ordinary users.
+   To use it during development, comment this rule out. */
+#debug-log-row {
+  display: none;
+}
+
 .dialog-section {
   min-height: 0;
 }
@@ -1836,6 +1902,23 @@ label:has(#field-rating) {
   flex-shrink: 0;
 }
 
+.toggle-row input[type="text"] {
+  background: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--input-border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  flex-shrink: 0;
+  width: 160px;
+}
+
+.toggle-row input[type="text"].invalid-command {
+  background: #cc0000;
+  color: #ffffff;
+}
+
 .toggle-track {
   position: relative;
   width: 40px;
@@ -1860,7 +1943,7 @@ label:has(#field-rating) {
 }
 
 .toggle-thumb::after {
-  content: "";
+  content: var(--pseudo-empty);
   position: absolute;
   top: 3px;
   left: 3px;
@@ -1928,6 +2011,33 @@ label:has(#field-rating) {
   background: var(--danger-hover);
 }
 
+/* "Empty MusicPenguin Library" action in the settings dialog — matches the red
+   confirmation button used when deleting files. */
+#danger-zone {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 2rem;
+}
+.danger-zone-heading {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #c0392b;
+}
+#empty-db-row {
+  justify-content: flex-start;
+}
+#empty-db-btn {
+  padding: 7px 14px;
+  background: transparent;
+  border: 1px solid #c0392b;
+  color: #c0392b;
+}
+#empty-db-btn:hover {
+  background: #c0392b;
+  color: #fff;
+}
+
 /* ── Folder list ─────────────────────────────────────────── */
 #folder-list {
   list-style: none;
@@ -1982,7 +2092,7 @@ label:has(#field-rating) {
   border-color: var(--divider-hover);
 }
 
-.folder-item .folder-check {
+.folder-check {
   appearance: none;
   -webkit-appearance: none;
   flex-shrink: 0;
@@ -1995,12 +2105,12 @@ label:has(#field-rating) {
   cursor: pointer;
   position: relative;
 }
-.folder-item .folder-check:checked {
+.folder-check:checked {
   background: var(--primary);
   border-color: var(--primary);
 }
-.folder-item .folder-check:checked::after {
-  content: "✓";
+.folder-check:checked::after {
+  content: var(--check-mark);
   position: absolute;
   inset: 0;
   display: flex;
@@ -2010,6 +2120,65 @@ label:has(#field-rating) {
   font-size: 11px;
   font-weight: 700;
   line-height: 1;
+}
+
+/* ── Section headers inside dialogs ───────────────────────── */
+.dialog-section-header {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+  margin-bottom: 8px;
+  flex-shrink: 0;
+}
+
+#dlna-server-list {
+  list-style: none;
+  /* Vertical distance from the section header comes solely from the
+     header's margin-bottom, keeping both dialog sections consistent */
+  margin: 0;
+  padding: 0;
+  flex-shrink: 0;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.dlna-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.dlna-item:hover {
+  background: var(--hover);
+}
+
+.dlna-item .dlna-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.dlna-item .dlna-icon img {
+  max-width: 20px;
+  max-height: 20px;
+  object-fit: contain;
+}
+
+.dlna-item .dlna-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
 }
 
 /* ── Context menu ─────────────────────────────────────────── */
@@ -2054,7 +2223,7 @@ label:has(#field-rating) {
   border-color: var(--primary);
 }
 .context-menu-item input[type="checkbox"]:checked::after {
-  content: "✓";
+  content: var(--check-mark);
   position: absolute;
   inset: 0;
   display: flex;
@@ -2119,6 +2288,11 @@ label:has(#field-rating) {
   letter-spacing: 0.5px;
 }
 
+.playlist-sort-item.active {
+  background: var(--hover);
+  color: var(--text);
+}
+
 .playlist-sort-sep {
   border: none;
   border-top: 1px solid var(--border);
@@ -2145,6 +2319,7 @@ label:has(#field-rating) {
   align-items: center;
   gap: 1rem;
   min-width: 320px;
+  max-width: min(480px, 90vw);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 .delete-dialog-warning {
@@ -2155,6 +2330,8 @@ label:has(#field-rating) {
   font-size: 1rem;
   color: var(--primary-text);
   text-align: center;
+  max-width: 100%;
+  overflow-wrap: break-word;
 }
 .delete-dialog-buttons {
   display: flex;

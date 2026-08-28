@@ -23,17 +23,30 @@ export function renderGroups(
   selectedId?: string | null,
   getTracksForGroup?: (groupId: string) => Array<{ path: string; title: string; artist: string; duration: string }>,
   onShowInFolder?: (folderPath: string) => void,
+  onRemove?: (node: TreeNode) => void,
 ): void {
   container.innerHTML = "";
+  container.tabIndex = 0;
+
+  container.onkeydown = (e: KeyboardEvent) => {
+    if (e.key === "Delete" && onRemove) {
+      const sel = container.querySelector("li.selected") as HTMLElement | null;
+      if (!sel) return;
+      const id = sel.dataset.id;
+      if (!id || FIXED_GROUP_LABELS.has(id) || id.endsWith("-heading")) return;
+      const node = nodes.find((n) => n.id === id);
+      if (node) onRemove(node);
+    }
+  };
 
   for (const node of nodes) {
     const li = document.createElement("li");
     li.dataset.id = node.id;
 
-    if (node.coverArt) {
+    if (node.thumbnail) {
       const img = document.createElement("img");
       img.className = "group-cover";
-      img.src = node.coverArt;
+      img.src = node.thumbnail;
       img.alt = "";
       li.appendChild(img);
     }
@@ -66,6 +79,7 @@ export function renderGroups(
 
     li.addEventListener("click", () => {
       if (node.id.endsWith("-heading")) return;
+      container.focus();
       container.querySelectorAll(".selected").forEach((c) => c.classList.remove("selected"));
       li.classList.add("selected");
       onSelect(node);
@@ -76,13 +90,16 @@ export function renderGroups(
       onDblClick?.(node);
     });
 
-    if (onShowInFolder && node.id.startsWith("grp-folder:")) {
+    /* Folder groups derived from DLNA rows are URL prefixes with no
+       physical directory to reveal — skip the menu entirely. */
+    const folderPath = node.id.startsWith("grp-folder:")
+      ? decodeURIComponent(node.id.slice("grp-folder:".length))
+      : null;
+    if (onShowInFolder && folderPath && !/^https?:\/\//i.test(folderPath)) {
       li.addEventListener("contextmenu", (e) => {
         e.preventDefault();
         e.stopPropagation();
         closeContextMenu();
-
-        const folderPath = decodeURIComponent(node.id.slice("grp-folder:".length));
 
         const menu = document.createElement("div");
         menu.className = "context-menu";

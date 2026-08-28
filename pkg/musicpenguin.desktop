@@ -2,9 +2,10 @@
 Type=Application
 Name=MusicPenguin
 Comment=A desktop music library and player
-Exec=/opt/musicpenguin/musicpenguin.sh %F
+Exec=/usr/bin/musicpenguin %F
 Icon=musicpenguin
-Categories=Audio;Music;Player;
+Categories=AudioVideo;Audio;Music;Player;
 MimeType=audio/mpeg;audio/x-flac;audio/ogg;audio/x-wav;audio/mp4;audio/aac;
 Terminal=false
 StartupNotify=true
+StartupWMClass=musicpenguin

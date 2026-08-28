@@ -2,7 +2,7 @@
  * Contract every supported language must fulfill.
  *
  * Design: the English strings themselves are the lookup keys (gettext
- * style). `t("All Files")` returns the localized text; when a key is
+ * style). `t("All Tracks")` returns the localized text; when a key is
  * missing the English original is returned, so `en-us` is the fallback
  * source of truth and its dictionary can stay empty.
  *

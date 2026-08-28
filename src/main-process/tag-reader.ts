@@ -1,10 +1,11 @@
 import { spawn } from "child_process";
 import * as fs from "fs";
+import * as path from "path";
 import { parseFile } from "music-metadata";
 
 import { withTimeout } from "./utils";
-import { saveDb } from "./database";
-import { TAG_BATCH_SIZE, NUM_TAG_READER_THREADS } from "../config";
+import { saveDb, DB_VERSION } from "./database";
+import { TAG_BATCH_SIZE, NUM_TAG_READER_THREADS, TAG_SAVE_INTERVAL } from "../config";
 import type { SqlJsDatabase, SendToRenderer } from "./types";
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -197,7 +198,10 @@ function refillQueue() {
   stmt.free();
 }
 
-async function tryFfprobeForDuration(filePath: string): Promise<number> {
+/* Layer-2 duration fallback shared by tag scanning and the DLNA
+   fixup pass: works on file paths AND http(s) stream URLs alike.
+   Resolves 0 when ffprobe is missing, fails, or times out. */
+export async function tryFfprobeForDuration(filePath: string, timeoutMs = 30000): Promise<number> {
   return new Promise((resolve) => {
     const proc = spawn("ffprobe", [
       "-v", "quiet",
@@ -206,16 +210,29 @@ async function tryFfprobeForDuration(filePath: string): Promise<number> {
       filePath,
     ], { stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
+    let settled = false;
+    const finish = (value: number) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(value);
+    };
+    /* Network streams can hang on a dead server far beyond any TCP
+       retry; kill instead of waiting for the process to give up. */
+    const timer = setTimeout(() => {
+      proc.kill("SIGKILL");
+      finish(0);
+    }, timeoutMs);
     proc.stdout.on("data", (d: Buffer) => { stdout += d.toString(); });
-    proc.on("error", () => resolve(0));
+    proc.on("error", () => finish(0));
     proc.on("close", (code) => {
-      if (code !== 0) return resolve(0);
+      if (code !== 0) return finish(0);
       try {
         const data = JSON.parse(stdout);
         const dur = data?.format?.duration;
-        if (dur && dur !== "0") return resolve(parseFloat(dur));
+        if (dur && dur !== "0") return finish(parseFloat(dur));
       } catch {}
-      resolve(0);
+      finish(0);
     });
   });
 }
@@ -371,19 +388,22 @@ async function parseFileTags(filePath: string): Promise<ParsedTags> {
   return { filePath, title, artist, album, track_no, album_artist, genre, disc_no, year, composer, conductor, comment, rating, bpm, duration, hadError };
 }
 
-function writeTagsToDb(result: ParsedTags): void {
+export function writeTagsToDb(result: ParsedTags): void {
   scanWriteCount++;
   let rating = result.rating;
 
-  if (rating === 0) {
-    const getStmt = db!.prepare("SELECT rating FROM files WHERE path = $path");
-    getStmt.bind({ $path: result.filePath });
-    if (getStmt.step()) {
-      const existingRating = getStmt.getAsObject().rating as number;
-      if (existingRating) rating = existingRating;
+  const getStmt = db!.prepare("SELECT rating FROM files WHERE path = $path");
+  getStmt.bind({ $path: result.filePath });
+  if (getStmt.step()) {
+    const row = getStmt.getAsObject();
+    const existingRating = Number(row.rating ?? 0);    
+    if (existingRating !== 0) {
+      // Existing rating in database must ALWAYS be preserved when !=0.
+      // Only ratings of 0 may be overwritten from incoming tag scanning.
+      rating = existingRating;
     }
-    getStmt.free();
   }
+  getStmt.free();
 
   const now = new Date().toISOString();
   const updateStmt = db!.prepare(
@@ -407,32 +427,15 @@ function writeTagsToDb(result: ParsedTags): void {
     $comment: result.comment,
     $rating: rating,
     $bpm: result.bpm,
-    $duration: result.duration,
+    /* Layer 1+2 both failed when this is <= 0: store NULL ("unknown"),
+       not 0, so the gap can be filled at play time. */
+    $duration: result.duration > 0 ? result.duration : null,
     $ts: now,
     $error: result.hadError ? 1 : 0,
   });
   updateStmt.step();
   updateStmt.reset();
   updateStmt.free();
-
-  sendToRenderer!("tags:updated", {
-    path: result.filePath,
-    title: result.title,
-    artist: result.artist,
-    album: result.album,
-    track_no: result.track_no,
-    album_artist: result.album_artist,
-    genre: result.genre,
-    disc_no: result.disc_no,
-    year: result.year,
-    composer: result.composer,
-    conductor: result.conductor,
-    comment: result.comment,
-    rating,
-    bpm: result.bpm,
-    duration: result.duration,
-    tags_error: result.hadError ? 1 : 0,
-  });
 }
 
 async function processQueue() {
@@ -444,8 +447,9 @@ async function processQueue() {
   doneResolve = null;
   donePromise = new Promise<void>((resolve) => { doneResolve = resolve; });
 
-  const totalFiles = db!.exec("SELECT COUNT(*) FROM files")[0]?.values[0]?.[0] as number ?? 0;
-  let scannedCount = db!.exec("SELECT COUNT(*) FROM files WHERE tags_scanned_at IS NOT NULL")[0]?.values[0]?.[0] as number ?? 0;
+  const totalToScan = db!.exec("SELECT COUNT(*) FROM files WHERE tags_scanned_at IS NULL")[0]?.values[0]?.[0] as number ?? 0;
+  let scannedInRun = 0;
+  const writesAtStart = scanWriteCount;
 
   try {
     while (true) {
@@ -465,8 +469,8 @@ async function processQueue() {
             const result = await parseFileTags(batch[i]!);
             writeTagsToDb(result);
             saved = true;
-            scannedCount++;
-            sendToRenderer!("tags:scanning", { path: batch[i]!, scanned: scannedCount, total: totalFiles });
+            scannedInRun++;
+            sendToRenderer!("tags:scanning", { path: batch[i]!, scanned: scannedInRun, total: totalToScan });
           }
         };
         await Promise.all(
@@ -474,17 +478,21 @@ async function processQueue() {
         );
       }
       const version: number = db!.exec("PRAGMA user_version")[0]?.values[0]?.[0] as number ?? 0;
-      if (version < 1) {
-        db!.run("PRAGMA user_version = 1");
+      if (version < DB_VERSION) {
+        db!.run(`PRAGMA user_version = ${DB_VERSION}`);
       }
-      saveDb(db!);
+      /* Checkpoint sparingly: db.export() copies the WHOLE database and
+         blocks the main process — stalling all IPC, including freshly
+         imported files waiting for their tags. Never do it per batch. */
+      if (scanWriteCount - writesAtStart >= TAG_SAVE_INTERVAL) {
+        saveDb(db!);
+        saved = true;
+      }
       if (stopped) break;
       refillQueue();
       if (queue.length === 0) break;
     }
   } finally {
-    if (saved) saveDb(db!);
-    db!.run("VACUUM");
     running = false;
     if (doneResolve) {
       doneResolve();
@@ -492,6 +500,17 @@ async function processQueue() {
       donePromise = null;
     }
     sendToRenderer!("tags:scanning", { path: null });
+    /* Defer the blocking full-database export (and VACUUM) until queued
+       IPC has been served — e.g. the lookupPaths calls
+       issued right after this would otherwise stall for the whole
+       serialize+write. VACUUM only pays off after substantial work, not
+       after a tiny import. */
+    setImmediate(() => {
+      if (saved) saveDb(db!);
+      if (scanWriteCount - writesAtStart >= TAG_SAVE_INTERVAL) {
+        db!.run("VACUUM");
+      }
+    });
     if (restartAfterStop && !stopped && queue.length > 0) {
       restartAfterStop = false;
       running = true;
@@ -541,15 +560,48 @@ export function prioritizeFiles(orderedPaths: string[]) {
   }
 }
 
-export async function rescanFiles(paths: string[]) {
+export async function rescanFiles(
+  paths: string[],
+  opts?: { onlyIfModified?: boolean },
+) {
   if (!paths.length) return;
+  /* Stream URLs (DLNA rows) have no locally readable tags: re-reading
+     them would only fail and stamp tags_error. They keep their metadata
+     from DIDL-Lite and learn durations at play time instead. */
+  const readable = paths.filter((p) => !/^https?:\/\//i.test(p));
+  if (!readable.length) return;
   stopped = true;
   queue = [];
   if (donePromise) {
     await donePromise;
   }
+  /* onlyIfModified (play-time refresh): skip files whose mtime did not
+     move past their last tag scan — same staleness rule the incremental
+     sweep uses. Never-scanned rows and unreadable ones (no tags yet /
+     stat failed) are skipped too: a forced context-menu re-read passes
+     without this option and reads regardless. */
+  let targets = readable;
+  if (opts?.onlyIfModified) {
+    const selStmt = db!.prepare("SELECT tags_scanned_at FROM files WHERE path = $path");
+    targets = readable.filter((p) => {
+      try {
+        const mtimeMs = fs.statSync(p).mtimeMs;
+        selStmt.bind({ $path: p });
+        const scanned = selStmt.step() ? (selStmt.getAsObject().tags_scanned_at as string | null) : null;
+        selStmt.reset();
+        return !scanned || mtimeMs > new Date(scanned).getTime();
+      } catch {
+        return false;
+      }
+    });
+    selStmt.free();
+    if (!targets.length) {
+      stopped = false;
+      return;
+    }
+  }
   const updStmt = db!.prepare("UPDATE files SET tags_scanned_at = NULL, tags_error = 0 WHERE path = $path");
-  for (const p of paths) {
+  for (const p of targets) {
     updStmt.bind({ $path: p });
     updStmt.step();
     updStmt.reset();
@@ -557,10 +609,37 @@ export async function rescanFiles(paths: string[]) {
   updStmt.free();
   saveDb(db!);
   stopped = false;
-  prioritizeFiles(paths);
+  prioritizeFiles(targets);
 }
 
-export async function runIncrementalScan(files: Array<{ fullPath: string; name: string }>) {
+/* Nearest ancestor directory of p that currently exists. When a mount
+   is down this walk stops at the (typically empty) mount point on the
+   host filesystem — exactly the signal the missing-file sweep below
+   uses to refuse mass deletion. */
+function nearestExistingAncestor(p: string): string {
+  let dir = path.dirname(p);
+  for (;;) {
+    try {
+      fs.statSync(dir);
+      return dir;
+    } catch { /* keep climbing */ }
+    const parent = path.dirname(dir);
+    if (parent === dir) return dir; // reached the filesystem root
+    dir = parent;
+  }
+}
+
+/* Missing files grouped by their nearest existing ancestor directory. */
+interface MissingGroup {
+  paths: string[];
+  /* DB rows under the same ancestor that still stat successfully. */
+  survivors: number;
+}
+
+export async function runIncrementalScan(
+  files: Array<{ fullPath: string; name: string }>,
+  allowedPaths?: string[],
+) {
   stopped = true;
   queue = [];
   if (donePromise) {
@@ -569,7 +648,7 @@ export async function runIncrementalScan(files: Array<{ fullPath: string; name: 
 
   const stmt = db!.prepare(
     `INSERT OR IGNORE INTO files (path, filename, title, artist, album, track_no, album_artist, genre, disc_no, year, composer, conductor, comment, rating, duration, bpm)
-     VALUES ($path, $filename, '', '', '', '', '', '', '', '', '', '', '', 0, 0, 0)`
+     VALUES ($path, $filename, '', '', '', '', '', '', '', '', '', '', '', 0, NULL, 0)`
   );
   db!.exec("BEGIN");
   for (const f of files) {
@@ -586,18 +665,48 @@ export async function runIncrementalScan(files: Array<{ fullPath: string; name: 
   db!.run("UPDATE files SET tags_scanned_at = NULL WHERE tags_error = 1");
   saveDb(db!);
 
-  // Check all DB files: remove missing entries, re-queue files modified since last scan
-  const allResult = db!.exec("SELECT path, tags_scanned_at FROM files")[0]?.values ?? [];
+  /* Prune DB entries whose paths don't reside under any enabled folder.
+     When allowedPaths is [] (no folders enabled) every non-DLNA
+     filesystem entry is removed.  When undefined, pruning is skipped
+     (backward-compatible for callers that don't pass it). */
   const toRemove: string[] = [];
+  if (allowedPaths !== undefined) {
+    const allPaths = db!.exec("SELECT path FROM files WHERE dlna = 0")[0]?.values ?? [];
+    for (const row of allPaths) {
+      const p = row[0] as string;
+      if (/^https?:\/\//i.test(p)) continue;
+      const underRoot = allowedPaths.some((r) => p.startsWith(r + "/") || p === r);
+      if (!underRoot) toRemove.push(p);
+    }
+  }
+
+  // Check all DB files: remove missing entries, re-queue files modified since last scan.
+  // DLNA rows are remote stream URLs — never stat'ed, never removed here;
+  // they are managed exclusively by the DLNA scan (dlna.ts).
+  const allResult = db!.exec("SELECT path, tags_scanned_at FROM files WHERE dlna = 0")[0]?.values ?? [];
   const requeuePaths: string[] = [];
+  const missingGroups = new Map<string, MissingGroup>();
 
   for (const row of allResult) {
     const p = row[0] as string;
+    /* Stream URLs (dlna = 0) also live here — nothing to stat, never
+       removed by this sweep. */
+    if (/^https?:\/\//i.test(p)) continue;
     let stat: fs.Stats | null = null;
     try {
       stat = fs.statSync(p);
     } catch {
-      toRemove.push(p);
+      /* A failed stat() alone does NOT prove the file is gone — it is
+         also exactly what a temporarily unavailable NAS looks like.
+         Group by nearest existing ancestor; deletion is only approved
+         further below when the surrounding tree verifiably exists. */
+      const anc = nearestExistingAncestor(p);
+      let group = missingGroups.get(anc);
+      if (!group) {
+        group = { paths: [], survivors: 0 };
+        missingGroups.set(anc, group);
+      }
+      group.paths.push(p);
       continue;
     }
     const tagsScannedAt = row[1] as string | null;
@@ -608,6 +717,32 @@ export async function runIncrementalScan(files: Array<{ fullPath: string; name: 
         requeuePaths.push(p);
       }
     }
+  }
+
+  /* Approve deletion of missing files ONLY when their tree is provably
+     reachable — otherwise an unmounted or sleeping NAS would mass-delete
+     rows and permanently destroy their ratings and play counts:
+       - sibling DB files under the same ancestor still stat → the volume
+         is up and exactly these files vanished from disk, OR
+       - no siblings survive, but the ancestor directory lists non-empty
+         content → reachable, the subtree beneath it was wiped by hand.
+     Anything else (ancestor empty or unreadable — dead mount, EIO,
+     permission trouble) keeps its rows until a later successful scan.
+     A share that is permanently gone therefore lingers in the library
+     until it is removed deliberately (folders dialog). */
+  for (const [anc, group] of missingGroups) {
+    const prefix = anc.endsWith("/") ? anc : anc + "/";
+    let under = 0;
+    for (const row of allResult) {
+      if ((row[0] as string).startsWith(prefix)) under++;
+    }
+    if (under - group.paths.length > 0) {
+      toRemove.push(...group.paths);
+      continue;
+    }
+    try {
+      if (fs.readdirSync(anc).length > 0) toRemove.push(...group.paths);
+    } catch { /* unreachable — keep the rows this round */ }
   }
 
   // Re-queue files whose mtime is newer than last tag scan
@@ -621,7 +756,7 @@ export async function runIncrementalScan(files: Array<{ fullPath: string; name: 
     updStmt.free();
   }
 
-  // Remove entries for files that no longer exist on disk
+  // Remove entries for files verified to have vanished (see above)
   if (toRemove.length > 0) {
     const delStmt = db!.prepare("DELETE FROM files WHERE path = $path");
     for (const p of toRemove) {
@@ -631,6 +766,8 @@ export async function runIncrementalScan(files: Array<{ fullPath: string; name: 
     }
     delStmt.free();
   }
+
+  const countBefore = db!.exec("SELECT COUNT(*) FROM files")[0]?.values[0]?.[0] as number ?? 0;
 
   saveDb(db!);
 
@@ -651,8 +788,53 @@ export async function runIncrementalScan(files: Array<{ fullPath: string; name: 
     await processQueue();
   }
 
+  /* Tag scanning is done — single refresh so the renderer picks up all
+     newly read metadata at once instead of patching per file. */
+  sendToRenderer!("library:changed", null);
+
   const total = db!.exec("SELECT COUNT(*) FROM files")[0]?.values[0]?.[0] as number ?? 0;
   const errors = db!.exec("SELECT COUNT(*) FROM files WHERE tags_error = 1")[0]?.values[0]?.[0] as number ?? 0;
 
-  return { added: scanWriteCount, removed: toRemove.length, total, errors };
+  return { added: scanWriteCount, removed: countBefore - total, total, errors };
+}
+
+/* scanSpecificFiles — lightweight import: insert the given files and let
+   THEM be tag-read by the shared background queue with top priority
+   (e.g. playlist imports). The paths are prepended to the
+   queue, so a fresh import is always scanned before anything else queued —
+   including files from an earlier import that are still waiting (most recent
+   import wins). No library-wide error re-queue, no mtime sweep, no removal
+   pass, no refill from other unscanned files. */
+export async function scanSpecificFiles(files: Array<{ fullPath: string; name: string }>) {
+  const unique = new Map<string, string>();
+  for (const f of files) unique.set(f.fullPath, f.name);
+
+  const stmt = db!.prepare(
+    `INSERT OR IGNORE INTO files (path, filename, title, artist, album, track_no, album_artist, genre, disc_no, year, composer, conductor, comment, rating, duration, bpm)
+     VALUES ($path, $filename, '', '', '', '', '', '', '', '', '', '', '', 0, NULL, 0)`
+  );
+  db!.exec("BEGIN");
+  for (const [p, name] of unique) {
+    stmt.bind({ $path: p, $filename: name });
+    stmt.step();
+    stmt.reset();
+  }
+  db!.exec("COMMIT");
+  stmt.free();
+
+  /* Only files that don't have tags yet need reading */
+  const selStmt = db!.prepare("SELECT tags_scanned_at FROM files WHERE path = $path");
+  const targets: string[] = [];
+  for (const p of unique.keys()) {
+    selStmt.bind({ $path: p });
+    if (selStmt.step() && !selStmt.getAsObject().tags_scanned_at) targets.push(p);
+    selStmt.reset();
+  }
+  selStmt.free();
+
+  /* Jump the queue: unshift ahead of everything else pending */
+  prioritizeFiles(targets);
+
+  const total = db!.exec("SELECT COUNT(*) FROM files")[0]?.values[0]?.[0] as number ?? 0;
+  return { added: targets.length, removed: 0, total, errors: 0 };
 }

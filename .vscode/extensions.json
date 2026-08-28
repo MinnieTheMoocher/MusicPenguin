@@ -9,6 +9,7 @@
         "timonwong.shellcheck",
         "vscode-icons-team.vscode-icons",
         "streetsidesoftware.code-spell-checker-french",
-        "streetsidesoftware.code-spell-checker-german"
+        "streetsidesoftware.code-spell-checker-german",
+        "streetsidesoftware.code-spell-checker-spanish"
     ]
 }

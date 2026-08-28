@@ -2,7 +2,7 @@ export interface TreeNode {
   id: string;
   label: string;
   children?: TreeNode[];
-  coverArt?: string;
+  thumbnail?: string;
 }
 
 export interface PlaylistEntry {
@@ -25,6 +25,7 @@ export interface PlaylistEntry {
   ext: string;
   trackPath: string;
   id: string;
+  dlna: boolean;
   _playing?: boolean;
 }
 
@@ -50,4 +51,5 @@ export interface ListItem {
   bpm: number;
   duration: string;
   playcount: number;
+  dlna: boolean;
 }

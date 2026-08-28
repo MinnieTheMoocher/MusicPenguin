@@ -2,13 +2,15 @@ import type { ITranslate } from "./ITranslate.js";
 import { enUS } from "./en-us.js";
 import { deDE } from "./de-de.js";
 import { frFR } from "./fr-fr.js";
+import { esES } from "./es-es.js";
 
-export type LanguageCode = "en-us" | "de-de" | "fr-fr";
+export type LanguageCode = "en-us" | "de-de" | "fr-fr" | "es-es";
 
 export const LANGUAGES: Record<string, ITranslate> = {
   [enUS.key]: enUS,
   [deDE.key]: deDE,
   [frFR.key]: frFR,
+  [esES.key]: esES,
 };
 
 let currentLanguage: ITranslate = enUS;
@@ -23,7 +25,7 @@ export function getLanguage(): string {
  * ... in the template are replaced by the given arguments, so numbers can
  * be inserted at the proper location of each language.
  *
- *   t("Loaded $1 $2 from library.", 5, "files")  →  "Loaded 5 files from library."
+ *   t("$1 $2 in MusicPenguin library.", 5, "files")  →  "Loaded 5 files from library."
  *
  * Missing keys fall back to the English original, so en-us is the source
  * of truth and never needs an explicit dictionary.
@@ -80,6 +82,7 @@ export function detectLanguage(): LanguageCode {
   const lang = nav.toLowerCase();
   if (lang.startsWith("de")) return "de-de";
   if (lang.startsWith("fr")) return "fr-fr";
+  if (lang.startsWith("es")) return "es-es";
   return "en-us";
 }
 

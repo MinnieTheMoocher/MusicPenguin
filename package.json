@@ -1,8 +1,8 @@
 {
   "name": "musicpenguin",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "homepage": "https://github.com/MinnieTheMoocher/MusicPenguin",
-  "author": "MinnieTheMoocher@users.noreply.github.com",
+  "author": "MusicPenguin@web.de",
   "description": "MusicPenguin - A fast Linux audio library and player",
   "license": "MIT",
   "repository": {
@@ -13,20 +13,31 @@
   "scripts": {
     "build": "npm run typecheck && npm run build:main && npm run build:renderer",
     "typecheck": "tsc --noEmit",
+    "layout": "firefox index.html",
     "build:renderer": "esbuild --bundle src/index.ts --outfile=dist/bundle.js --format=esm --sourcemap",
     "build:main": "esbuild --bundle src/main-process/index.ts --outfile=dist/main-bundle.js --platform=node --format=cjs --external:electron --external:music-metadata --external:sql.js --sourcemap",
     "watch": "npm run typecheck && esbuild --bundle src/index.ts --outfile=dist/bundle.js --format=esm --sourcemap --watch",
     "start": "npm run build && electron .",
-    "electron": "electron ."
+    "electron": "electron .",
+    "clean": "rm -rf ./node_modules ./dist ./*.deb"
   },
-  "keywords": ["linux", "music library", "music player", "music", "mp3", "audio"],
+  "keywords": [
+    "linux",
+    "music library",
+    "music player",
+    "music",
+    "mp3",
+    "audio"
+  ],
   "type": "commonjs",
   "devDependencies": {
     "esbuild": "^0.28.0",
     "typescript": "^6.0.3"
   },
   "dependencies": {
+    "dbus-native": "^0.15.1",
     "electron": "^42.3.2",
+    "fast-xml-parser": "^5.11.0",
     "music-metadata": "^11.14.0",
     "sql.js": "^1.14.1"
   }

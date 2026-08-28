@@ -46,9 +46,7 @@ function setPlaylistWidth(px: number): void {
 /* ── Persistence ────────────────────────────────────────── */
 async function saveSplitterState(): Promise<void> {
   try {
-    const data = await window.electronAPI.loadSettings();
     await window.electronAPI.saveSettings({
-      ...(data || {}),
       "groups-width": getGroupsWidth(),
       "list-height": getListHeight(),
       "playlist-width": getPlaylistWidth(),

@@ -4,28 +4,77 @@ import {
 import * as path from "path";
 import * as fs from "fs";
 import * as os from "os";
+import { fileURLToPath } from "url";
 
 import { SETTINGS_DIR, SETTINGS_PATH } from "./paths";
-
 import { setLanguage, t } from "../i18n/index";
 
 app.setPath("userData", path.join(os.homedir(), ".cache", "musicpenguin"));
+app.setAppUserModelId("musicpenguin");
 import { detectInitialTheme } from "./kde-theme";
-import { initDb, loadFiles, storeFiles, lookupPaths, searchFiles, getProblematicFiles, clearAllFiles, setRating, moveFilePath, incrementPlaycount, deleteFiles, saveDb } from "./database";
-import { initTagReader, startTagRead, stopTagReader, prioritizeFiles, runIncrementalScan, donePromise, rescanFiles } from "./tag-reader";
-import { getCoverArt } from "./cover-art";
-import { walkDirectory, commandExists, jsonStringify } from "./utils";
+import { initDb, loadFiles, storeFiles, lookupPaths, searchFiles, countProblematicFiles, getProblematicFiles, clearAllFiles, setRating, moveFilePath, incrementPlaycount, deleteFiles, saveDb, fillMissingDuration } from "./database";
+import { initTagReader, startTagRead, stopTagReader, prioritizeFiles, runIncrementalScan, scanSpecificFiles, donePromise, rescanFiles } from "./tag-reader";
+import { scanDlnaLibrary, fixupMissingDurations } from "./dlna";
+import { discoverDlnaServers } from "./ssdp";
+import type { DlnaScanTarget } from "./dlna";
+import { getCoverArt, getCoverArtGroups, fetchDlnaCoverArt, resizeToThumbnail } from "./cover-art";
+import { getTrackArtUrls, setTrackArtUrls } from "./database";
+import { walkDirectory, commandExists, jsonStringify, isExecutableCommand } from "./utils";
 import { PLAYABLE_FILE_EXTENSIONS } from "../config";
 import { spawn } from "child_process";
 
 import type { SqlJsDatabase, ScannedFileInfo } from "./types";
 
 import { DEFAULT_SEARCH_URLS, MAX_PROBE_FILE_SIZE } from "../config";
+import { initMpris, updateMprisState } from "./mpris";
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 
 let mainWindow: BrowserWindow | null = null;
 let db: SqlJsDatabase | null = null;
+let dbReady: Promise<SqlJsDatabase> = Promise.resolve(null as any);
+
+/* ── Settings serialization mutex ─────────────────────────────
+   Every read-modify-write of the settings file in the main process
+   goes through this single lock so no two writers can interleave
+   their read+write pair. Without it, a read-then-write in one handler
+   can clobber a concurrent write from another (e.g. the left-panel
+   group persistence being overwritten by the UI-state save). */
+let settingsLock: Promise<unknown> = Promise.resolve();
+function runWithSettingsLock<T>(fn: () => T): Promise<T> {
+  const run = settingsLock.then(fn, fn);
+  settingsLock = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+function readSettingsFile(): Record<string, unknown> {
+  try {
+    const raw = fs.readFileSync(SETTINGS_PATH, "utf-8");
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+function writeSettingsFile(settings: Record<string, unknown>): void {
+  if (!fs.existsSync(SETTINGS_DIR)) {
+    fs.mkdirSync(SETTINGS_DIR, { recursive: true });
+  }
+  fs.writeFileSync(SETTINGS_PATH, jsonStringify(settings), "utf-8");
+}
+/* Merge `partial` into the persisted settings under the lock, then
+   return the resulting full settings object. */
+function mutateSettings(partial: Record<string, unknown>): Record<string, unknown> {
+  const settings = readSettingsFile();
+  if (!settings["search-urls"]) {
+    settings["search-urls"] = DEFAULT_SEARCH_URLS;
+  }
+  Object.assign(settings, partial);
+  writeSettingsFile(settings);
+  return settings;
+}
 
 /* ── Language ────────────────────────────────────────────── */
 function detectInitialLanguage(): string {
@@ -38,6 +87,7 @@ function detectInitialLanguage(): string {
   const locale = app.getLocale().toLowerCase();
   if (locale.startsWith("de")) return "de-de";
   if (locale.startsWith("fr")) return "fr-fr";
+  if (locale.startsWith("es")) return "es-es";
   return "en-us";
 }
 
@@ -64,11 +114,7 @@ function saveWindowState() {
     if (!mainWindow) return;
     const isMax = mainWindow.isMaximized();
     const bounds = mainWindow.getNormalBounds();
-    let settings: Record<string, unknown> = {};
-    try {
-      settings = JSON.parse(fs.readFileSync(SETTINGS_PATH, "utf-8"));
-    } catch { /* settings file may not exist yet */ }
-    settings["window-state"] = {
+    const windowState = {
       x: bounds.x,
       y: bounds.y,
       width: bounds.width,
@@ -76,7 +122,9 @@ function saveWindowState() {
       maximized: isMax,
       "display-id": getWindowDisplayId(),
     };
-    fs.writeFileSync(SETTINGS_PATH, jsonStringify(settings), "utf-8");
+    void runWithSettingsLock(() => {
+      mutateSettings({ "window-state": windowState });
+    });
   } catch { /* best-effort */ }
 }
 
@@ -87,7 +135,7 @@ function createWindow() {
     height: 600,
     show: false,
     backgroundColor: "#000000",
-    icon: path.join(PROJECT_ROOT, "res", "musicpenguin.png"),
+    icon: path.join(PROJECT_ROOT, "res", "musicpenguin256.png"),
     webPreferences: {
       preload: path.join(PROJECT_ROOT, "preload.js"),
       contextIsolation: true,
@@ -151,55 +199,46 @@ function createWindow() {
 ipcMain.on("now-playing:save", (_event, data: Record<string, unknown> | null) => {
   try {
     if (!data?.path) return;
-    let settings: Record<string, unknown> = {};
-    try { settings = JSON.parse(fs.readFileSync(SETTINGS_PATH, "utf-8")); } catch { /* ignore */ }
-    settings["now-playing"] = { path: data.path, "current-time": data["current-time"] };
-    if (data["search-query"] !== undefined) settings["search-query"] = data["search-query"];
-    if (data.volume !== undefined) settings.volume = data.volume;
-    if (data.muted !== undefined) settings.muted = data.muted;
-    fs.writeFileSync(SETTINGS_PATH, jsonStringify(settings), "utf-8");
+    const partial: Record<string, unknown> = {};
+    partial["now-playing"] = { path: data.path, "current-time": data["current-time"] };
+    if (data["search-query"] !== undefined) partial["search-query"] = data["search-query"];
+    if (data.volume !== undefined) partial.volume = data.volume;
+    if (data.muted !== undefined) partial.muted = data.muted;
+    void runWithSettingsLock(() => {
+      mutateSettings(partial);
+    });
   } catch { /* best-effort */ }
 });
 
 ipcMain.on("settings:saveSync", (_event, partial: Record<string, unknown>) => {
-  if (!fs.existsSync(SETTINGS_DIR)) {
-    fs.mkdirSync(SETTINGS_DIR, { recursive: true });
-  }
-  let settings: Record<string, unknown> = {};
-  try { settings = JSON.parse(fs.readFileSync(SETTINGS_PATH, "utf-8")); } catch { /* ignore */ }
-  if (!settings["search-urls"]) {
-    settings["search-urls"] = DEFAULT_SEARCH_URLS;
-  }
-  Object.assign(settings, partial);
-  fs.writeFileSync(SETTINGS_PATH, jsonStringify(settings), "utf-8");
+  void runWithSettingsLock(() => {
+    mutateSettings(partial || {});
+  });
 });
 
 /* settings */
-ipcMain.handle("settings:load", () => {
-  try {
-    if (!fs.existsSync(SETTINGS_PATH)) return null;
-    const data = JSON.parse(fs.readFileSync(SETTINGS_PATH, "utf-8"));
-    if (!data["search-urls"]) {
-      data["search-urls"] = [...DEFAULT_SEARCH_URLS];
-      fs.writeFileSync(SETTINGS_PATH, jsonStringify(data), "utf-8");
+ipcMain.handle("settings:load", async () => {
+  return runWithSettingsLock(() => {
+    try {
+      if (!fs.existsSync(SETTINGS_PATH)) {
+        return null;
+      }
+      const data = JSON.parse(fs.readFileSync(SETTINGS_PATH, "utf-8"));
+      if (!data["search-urls"]) {
+        data["search-urls"] = [...DEFAULT_SEARCH_URLS];
+        writeSettingsFile(data);
+      }
+      return data;
+    } catch {
+      return null;
     }
-    return data;
-  } catch {
-    return null;
-  }
+  });
 });
 
-ipcMain.handle("settings:save", (_event, partial: Record<string, unknown>) => {
-  if (!fs.existsSync(SETTINGS_DIR)) {
-    fs.mkdirSync(SETTINGS_DIR, { recursive: true });
-  }
-  let settings: Record<string, unknown> = {};
-  try { settings = JSON.parse(fs.readFileSync(SETTINGS_PATH, "utf-8")); } catch { /* ignore */ }
-  if (!settings["search-urls"]) {
-    settings["search-urls"] = DEFAULT_SEARCH_URLS;
-  }
-  Object.assign(settings, partial);
-  fs.writeFileSync(SETTINGS_PATH, jsonStringify(settings), "utf-8");
+ipcMain.handle("settings:save", async (_event, partial: Record<string, unknown>) => {
+  await runWithSettingsLock(() => {
+    mutateSettings(partial || {});
+  });
 });
 
 /* dialog:pickFolder */
@@ -247,11 +286,27 @@ function getPlaylistFolder(): string {
 
 function setPlaylistFolder(dir: string): void {
   try {
-    if (!fs.existsSync(SETTINGS_DIR)) fs.mkdirSync(SETTINGS_DIR, { recursive: true });
-    let settings: Record<string, unknown> = {};
-    try { settings = JSON.parse(fs.readFileSync(SETTINGS_PATH, "utf-8")); } catch { /* ignore */ }
-    settings["playlist-folder"] = dir;
-    fs.writeFileSync(SETTINGS_PATH, jsonStringify(settings), "utf-8");
+    void runWithSettingsLock(() => {
+      mutateSettings({ "playlist-folder": dir });
+    });
+  } catch { /* best-effort */ }
+}
+
+function getPlaylistFile(): string | null {
+  try {
+    const settings = JSON.parse(fs.readFileSync(SETTINGS_PATH, "utf-8"));
+    if (typeof settings["playlist-file"] === "string" && settings["playlist-file"]) {
+      return settings["playlist-file"];
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
+function setPlaylistFile(filePath: string): void {
+  try {
+    void runWithSettingsLock(() => {
+      mutateSettings({ "playlist-file": filePath });
+    });
   } catch { /* best-effort */ }
 }
 
@@ -268,20 +323,42 @@ function parseM3u(content: string, baseDir: string): string[] {
   for (const rawLine of content.split(/\r?\n/)) {
     const line = rawLine.trim();
     if (!line || line.startsWith("#")) continue;
-    paths.push(path.isAbsolute(line) ? line : path.join(baseDir, line));
+    /* Scheme detection is case-SENSITIVE: "file://" is the valid URL
+       spelling, "FILE://" is not — such lines are rejected outright
+       instead of being silently turned into broken playlist entries. */
+    const scheme = /^([a-zA-Z][a-zA-Z0-9+.-]*):\/\//.exec(line)?.[1];
+    if (scheme && !/^[a-z][a-z0-9+.-]*$/.test(scheme)) continue;
+    /* file:// URLs denote LOCAL files (other players write them into
+       m3u exports): decode to plain filesystem paths — including
+       percent-encoding — so library lookup and playback work. */
+    if (scheme === "file") {
+      try {
+        paths.push(fileURLToPath(line));
+        continue;
+      } catch { /* malformed or non-local file:// URL — fall through */ }
+    }
+    /* Stream URLs (e.g. DLNA http(s) rows) are already "absolute" —
+       path.isAbsolute() is false for them and joining would corrupt
+       the entry into <baseDir>/http:/host/... */
+    paths.push(scheme || path.isAbsolute(line) ? line : path.join(baseDir, line));
   }
   return paths;
 }
 
 ipcMain.handle("playlist:save", async (_event, paths: string[]) => {
+  const storedFile = getPlaylistFile();
+  const defaultPath = storedFile && fs.existsSync(storedFile)
+    ? storedFile
+    : path.join(getPlaylistFolder(), "playlist.m3u8");
   const result = await dialog.showSaveDialog(mainWindow!, {
     title: t("Save Playlist"),
-    defaultPath: path.join(getPlaylistFolder(), "playlist.m3u8"),
+    defaultPath,
     filters: PLAYLIST_FILE_FILTERS,
   });
   if (result.canceled || !result.filePath) return { canceled: true };
   fs.writeFileSync(result.filePath, serializeM3u(paths), "utf-8");
   setPlaylistFolder(path.dirname(result.filePath));
+  setPlaylistFile(result.filePath);
   return { canceled: false, path: result.filePath };
 });
 
@@ -297,6 +374,7 @@ ipcMain.handle("playlist:load", async () => {
   const filePath = result.filePaths[0]!;
   const content = fs.readFileSync(filePath, "utf-8").replace(/^\uFEFF/, "");
   setPlaylistFolder(path.dirname(filePath));
+  setPlaylistFile(filePath);
   return { canceled: false, paths: parseM3u(content, path.dirname(filePath)), filePath };
 });
 
@@ -355,22 +433,26 @@ ipcMain.handle("fs:readFile", async (_event, filePath: string) => {
 });
 
 /* db:storeFiles */
-ipcMain.handle("db:storeFiles", (_event, files: ScannedFileInfo[]) => {
+ipcMain.handle("db:storeFiles", async (_event, files: ScannedFileInfo[]) => {
+  await dbReady;
   storeFiles(db!, files);
 });
 
 /* db:loadFiles */
-ipcMain.handle("db:loadFiles", () => {
+ipcMain.handle("db:loadFiles", async () => {
+  await dbReady;
   return loadFiles(db!);
 });
 
 /* db:lookupPaths */
-ipcMain.handle("db:lookupPaths", (_event, paths: string[]) => {
+ipcMain.handle("db:lookupPaths", async (_event, paths: string[]) => {
+  await dbReady;
   return lookupPaths(db!, paths);
 });
 
 /* db:searchFiles */
-ipcMain.handle("db:searchFiles", (_event, opts: { query: string; columns?: string[]; regex?: boolean }) => {
+ipcMain.handle("db:searchFiles", async (_event, opts: { query: string; columns?: string[]; regex?: boolean }) => {
+  await dbReady;
   return searchFiles(db!, opts);
 });
 
@@ -380,8 +462,8 @@ ipcMain.handle("db:prioritizeFiles", (_event, orderedPaths: string[]) => {
 });
 
 /* db:rescanFiles */
-ipcMain.handle("db:rescanFiles", async (_event, paths: string[]) => {
-  await rescanFiles(paths);
+ipcMain.handle("db:rescanFiles", async (_event, paths: string[], opts?: { onlyIfModified?: boolean }) => {
+  await rescanFiles(paths, opts);
 });
 
 /* db:stopTagRead */
@@ -398,12 +480,165 @@ ipcMain.handle("db:startTagRead", async () => {
 });
 
 /* db:runIncrementalScan */
-ipcMain.handle("db:runIncrementalScan", async (_event, files: ScannedFileInfo[]) => {
-  return runIncrementalScan(files);
+ipcMain.handle("db:runIncrementalScan", async (_event, files: ScannedFileInfo[], allowedPaths?: string[]) => {
+  const result = await runIncrementalScan(files, allowedPaths);
+  /* Duration fixup belongs to scanning workflows only — it never runs
+     silently in the background of an app start. */
+  await runDurationFixupAndNotify();
+  return result;
+});
+
+/* ── Background DLNA server discovery ────────────────────── */
+
+/* Shape of a persisted "dlna-servers" entry (mirrors the renderer's
+   DlnaServerEntry; dashed names mirror the JSON keys). */
+interface DlnaPersistedServer {
+  name: string;
+  "control-url": string;
+  "description-url"?: string;
+  "icon-url"?: string;
+  enabled?: boolean;
+}
+
+/* SSDP M-SEARCH runs in the background shortly after app start,
+   detached from any dialog: every responding media server is merged
+   into the persisted "dlna-servers" setting — known entries get their
+   name/location/icon refreshed, unknown ones are appended UNCHECKED
+   (opt-in) — and the renderer is notified via dlna:servers-changed so
+   an open folders dialog picks the list up immediately. A few bounded
+   retries cover machines whose network is not fully up yet at launch;
+   the search stops early once something was found. */
+const DLNA_DISCOVERY_DELAYS_MS = [3000, 20000, 45000];
+
+async function runStartupDlnaDiscovery(): Promise<void> {
+  const readSettings = (): Record<string, unknown> => {
+    try { return JSON.parse(fs.readFileSync(SETTINGS_PATH, "utf-8")) ?? {}; }
+    catch { return {}; }
+  };
+
+  for (let attempt = 0; attempt < DLNA_DISCOVERY_DELAYS_MS.length; attempt++) {
+    if (attempt > 0) {
+      await new Promise((resolve) => setTimeout(resolve, DLNA_DISCOVERY_DELAYS_MS[attempt]));
+    }
+    let found;
+    try {
+      found = await discoverDlnaServers();
+    } catch (err) {
+      debugLog("[dlna] background discovery failed:", err);
+      continue;
+    }
+    if (found.length === 0) continue;
+
+    /* Merge into the persisted server list. */
+    const stored = readSettings()["dlna-servers"];
+    const servers: DlnaPersistedServer[] = Array.isArray(stored)
+      ? stored.filter((s): s is DlnaPersistedServer =>
+          !!s && typeof s === "object" && typeof (s as DlnaPersistedServer)["control-url"] === "string")
+      : [];
+    let changed = false;
+    for (const server of found) {
+      const existing = servers.find(
+        (s) => s["control-url"] === server.controlUrl
+          || (!!server.location && s["description-url"] === server.location),
+      );
+      if (existing) {
+        if (server.name && server.name !== existing.name) { existing.name = server.name; changed = true; }
+        if (!existing["description-url"] && server.location) {
+          existing["description-url"] = server.location; changed = true;
+        }
+        if (server.icon && server.icon !== existing["icon-url"]) {
+          existing["icon-url"] = server.icon; changed = true;
+        }
+      } else {
+        servers.push({
+          name: server.name ?? "",
+          "control-url": server.controlUrl,
+          "description-url": server.location,
+          "icon-url": server.icon ?? undefined,
+          enabled: false,
+        });
+        changed = true;
+      }
+    }
+
+    if (!changed) {
+      debugLog(`[dlna] ${found.length} known audio server(s) already persisted`);
+      return;
+    }
+    try {
+      await runWithSettingsLock(() => {
+        mutateSettings({ "dlna-servers": servers });
+      });
+    } catch (err) {
+      debugLog("[dlna] persisting discovered audio servers failed:", err);
+      return;
+    }
+    debugLog(`[dlna] ${found.length} audio server(s) discovered at startup`);
+    mainWindow?.webContents.send("dlna:servers-changed");
+    return;
+  }
+}
+
+/* dlna:scan — enumerate every enabled DLNA server's audio library and
+   sync it into the database. Only invoked explicitly (folders dialog
+   close / Scan button), never automatically, and always after all
+   filesystem scans completed. Tracks are pushed to the renderer in
+   batches as they are discovered so the main list grows live. */
+ipcMain.handle("dlna:scan", async (_event, servers: DlnaScanTarget[]) => {
+  await dbReady;
+  const result = await scanDlnaLibrary(db!, servers, (found, name, addedRows) => {
+    mainWindow?.webContents.send("dlna:progress", { found, name, added: addedRows ?? [] });
+  });
+  /* Layer 2 duration fixup for rows the servers announced without a
+     res@duration (NULL); corrections land in the DB + renderer. */
+  await runDurationFixupAndNotify();
+  return result;
+});
+
+/* One ffprobe pass over every track whose duration is still unknown;
+   learned values are persisted and pushed to the renderer. Called ONLY
+   as a fixup after scanning workflows (incremental file scan, DLNA
+   scan) — never silently at app start. */
+async function runDurationFixupAndNotify(): Promise<void> {
+  await dbReady;
+  try {
+    const fixedPaths = await fixupMissingDurations(db!);
+    if (fixedPaths.length === 0) return;
+    saveDb(db!);
+    const rows = lookupPaths(db!, fixedPaths);
+    mainWindow?.webContents.send("library:durations-fixed", { rows });
+  } catch (err) {
+    debugLog("[dlna] duration fixup pass failed:", err);
+  }
+}
+
+/* db:fillDuration — layer 3 gap filler: the renderer learned the real
+   duration of the currently playing track from its <audio> element.
+   Only fills NULL gaps; returns whether the DB changed. */
+ipcMain.handle("db:fillDuration", async (_event, filePath: string, seconds: number) => {
+  await dbReady;
+  if (!filePath) return false;
+  const updated = fillMissingDuration(db!, filePath, seconds);
+  if (updated) saveDb(db!);
+  return updated;
+});
+
+/* db:scanSpecificFiles — tag-read only the given files */
+ipcMain.handle("db:scanSpecificFiles", async (_event, files: ScannedFileInfo[]) => {
+  const result = await scanSpecificFiles(files);
+  await runDurationFixupAndNotify();
+  return result;
+});
+
+/* db:getProblematicFileCount */
+ipcMain.handle("db:getProblematicFileCount", async () => {
+  await dbReady;
+  return countProblematicFiles(db!);
 });
 
 /* db:getProblematicFiles */
 ipcMain.handle("db:getProblematicFiles", async () => {
+  await dbReady;
   const paths = getProblematicFiles(db!);
   if (paths.length === 0) {
     return { count: 0, path: "", opened: false };
@@ -450,25 +685,67 @@ ipcMain.handle("db:getProblematicFiles", async () => {
 
 /* db:clearDatabase */
 ipcMain.handle("db:clearDatabase", async () => {
+  await dbReady;
   stopTagReader();
   if (donePromise) {
     await donePromise;
   }
   clearAllFiles(db!);
+  mainWindow?.webContents.send("library:changed");
 });
 
+/* DLNA rows have http(s) stream URLs instead of file paths; their cover
+   art is fetched from the server via the stored upnp:albumArtURI(s).
+   Once the largest candidate has been determined it is written back to
+   the DB — replacing all others — so every later lookup needs only a
+   single request. */
+function isStreamUrl(p: string): boolean {
+  return /^https?:\/\//i.test(p);
+}
+
+async function resolveDlnaCover(streamUrl: string): Promise<string | null> {
+  const spec = getTrackArtUrls(db!, streamUrl);
+  if (!spec) return null;
+  const result = await fetchDlnaCoverArt(streamUrl, spec);
+  if (!result) return null;
+  if (result.artUrl !== spec) {
+    setTrackArtUrls(db!, streamUrl, result.artUrl);
+    saveDb(db!);
+  }
+  return result.dataUrl;
+}
+
 /* db:getCoverArt */
-ipcMain.handle("db:getCoverArt", async (_event, filePath: string) => {
-  return getCoverArt(filePath);
+ipcMain.handle("db:getCoverArt", async (_event, filePath: string, maxSize?: number) => {
+  await dbReady;
+  if (isStreamUrl(filePath)) {
+    const dataUrl = await resolveDlnaCover(filePath);
+    if (dataUrl && maxSize) return resizeToThumbnail(dataUrl, maxSize);
+    return dataUrl;
+  }
+  return getCoverArt(filePath, maxSize);
+});
+
+/* db:getCoverArtGroups — remote tracks only ever have a single front
+   image; rear covers / extra images are a local-folder concept. */
+ipcMain.handle("db:getCoverArtGroups", async (_event, filePath: string) => {
+  await dbReady;
+  if (isStreamUrl(filePath)) {
+    const front = await resolveDlnaCover(filePath);
+    return { front, rearCovers: [], extraImages: [] };
+  }
+  return getCoverArtGroups(filePath);
 });
 
 /* db:deleteFiles */
-ipcMain.handle("db:deleteFiles", (_event, paths: string[]) => {
+ipcMain.handle("db:deleteFiles", async (_event, paths: string[]) => {
+  await dbReady;
   deleteFiles(db!, paths);
 });
 
 /* db:deleteFilesFromDisk */
-ipcMain.handle("db:deleteFilesFromDisk", (_event, paths: string[]) => {
+ipcMain.handle("db:deleteFilesFromDisk", async (_event, paths: string[]) => {
+  await dbReady;
   for (const p of paths) {
     try { fs.unlinkSync(p); } catch { /* file may not exist */ }
   }
@@ -476,17 +753,20 @@ ipcMain.handle("db:deleteFilesFromDisk", (_event, paths: string[]) => {
 });
 
 /* db:setRating */
-ipcMain.handle("db:setRating", (_event, filePath: string, rating: number) => {
+ipcMain.handle("db:setRating", async (_event, filePath: string, rating: number) => {
+  await dbReady;
   setRating(db!, filePath, rating);
 });
 
 /* db:incrementPlaycount */
-ipcMain.handle("db:incrementPlaycount", (_event, filePath: string) => {
+ipcMain.handle("db:incrementPlaycount", async (_event, filePath: string) => {
+  await dbReady;
   return incrementPlaycount(db!, filePath);
 });
 
 /* db:moveFile */
 ipcMain.handle("db:moveFile", async (_event, oldPath: string, newPath: string) => {
+  await dbReady;
   if (!oldPath || !newPath || oldPath === newPath) return { ok: false, error: "no change" };
   if (!newPath.trim()) return { ok: false, error: "path is empty" };
   try {
@@ -498,14 +778,14 @@ ipcMain.handle("db:moveFile", async (_event, oldPath: string, newPath: string) =
   }
   const newFilename = path.basename(newPath);
   moveFilePath(db!, oldPath, newPath, newFilename);
-  try {
-    const raw = fs.readFileSync(SETTINGS_PATH, "utf-8");
-    const settings = JSON.parse(raw);
-    if (settings["now-playing"]?.path === oldPath) {
-      settings["now-playing"].path = newPath;
-      fs.writeFileSync(SETTINGS_PATH, jsonStringify(settings), "utf-8");
+  await runWithSettingsLock(() => {
+    const settings = readSettingsFile();
+    if (settings["now-playing"] && typeof settings["now-playing"] === "object" &&
+        (settings["now-playing"] as Record<string, unknown>)["path"] === oldPath) {
+      (settings["now-playing"] as Record<string, unknown>)["path"] = newPath;
+      writeSettingsFile(settings);
     }
-  } catch { /* best-effort */ }
+  });
   return { ok: true, oldPath, newPath, newFilename };
 });
 
@@ -522,18 +802,29 @@ ipcMain.handle("shell:openExternal", async (_event, url: string) => {
   } catch { /* ignore */ }
 });
 
-/* shell:openInVlc */
-ipcMain.handle("shell:openInVlc", async (_event, filePaths: string | string[]) => {
-  if (!commandExists("vlc")) return false;
+/* shell:openInExternalPlayer */
+ipcMain.handle("shell:openInExternalPlayer", async (_event, filePaths: string | string[], player?: string) => {
+  const exe = (player ?? "").trim() || "vlc";
+  if (!isExecutableCommand(exe)) return false;
+  const files = Array.isArray(filePaths) ? filePaths : [filePaths];
   try {
-    const files = Array.isArray(filePaths) ? filePaths : [filePaths];
-    spawn("vlc", files, { detached: true, stdio: "ignore" }).unref();
+    spawn(exe, files, { detached: true, stdio: "ignore" }).unref();
+    // playing a file in an external player counts as a play
+    await dbReady;
+    for (const f of files) incrementPlaycount(db!, f);
     return true;
   } catch { return false; }
 });
 
-/* shell:isVlcAvailable */
-ipcMain.handle("shell:isVlcAvailable", () => commandExists("vlc"));
+/* shell:isExternalPlayerAvailable */
+ipcMain.handle("shell:isExternalPlayerAvailable", (_event, player?: string) => {
+  return isExecutableCommand((player ?? "").trim() || "vlc");
+});
+
+/* shell:checkCommand */
+ipcMain.handle("shell:checkCommand", (_event, cmd: string) => {
+  return isExecutableCommand(String(cmd ?? ""));
+});
 
 /* app:getVersion */
 ipcMain.handle("app:getVersion", () => {
@@ -543,6 +834,38 @@ ipcMain.handle("app:getVersion", () => {
 /* app:getPlayableExtensions */
 ipcMain.handle("app:getPlayableExtensions", () => {
   return Array.from(PLAYABLE_FILE_EXTENSIONS);
+});
+
+/* debug:log */
+const DEBUG_LOG_PATH = path.join(os.homedir(), ".config", "musicpenguin", "musicpenguin.log");
+
+function isDebugLogEnabled(): boolean {
+  try {
+    const data = JSON.parse(fs.readFileSync(SETTINGS_PATH, "utf-8"));
+    return data["debug-log"] === true;
+  } catch { return false; }
+}
+
+function debugLog(...args: unknown[]): void {
+  if (!isDebugLogEnabled()) return;
+  const ts = new Date().toISOString();
+  const msg = args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ");
+  try { fs.appendFileSync(DEBUG_LOG_PATH, ts + " " + msg + "\n"); } catch { /* ignore */ }
+}
+
+ipcMain.handle("debug:log", (_event, line: string) => {
+  try {
+    fs.appendFileSync(DEBUG_LOG_PATH, line + "\n");
+  } catch { /* ignore */ }
+});
+
+/* mpris:updateState */
+ipcMain.on("mpris:updateState", (_event, state) => {
+  try {
+    updateMprisState(state);
+  } catch (err) {
+    console.error("[MPRIS] mpris:updateState IPC failed:", err);
+  }
 });
 
 /* shell:showInExternalFileExplorer */
@@ -590,14 +913,66 @@ app.on("activate", () => {
 });
 
 /* ── Startup ─────────────────────────────────────────────── */
-export async function start() {
-  Menu.setApplicationMenu(null);
-  setLanguage(detectInitialLanguage());
-  db = await initDb();
 
-  initTagReader(db, (channel: string, data: unknown) => {
-    mainWindow?.webContents.send(channel, data);
+function sendToRendererChannel(channel: string, data: unknown): void {
+  mainWindow?.webContents.send(channel, data);
+}
+
+/* Re-read the database file after a second instance modified it. */
+let reloadTimer: NodeJS.Timeout | null = null;
+function scheduleDbReload(): void {
+  if (reloadTimer) clearTimeout(reloadTimer);
+  reloadTimer = setTimeout(() => {
+    reloadTimer = null;
+    void (async () => {
+      try {
+        stopTagReader();
+        dbReady = initDb();
+        db = await dbReady;
+        initTagReader(db, sendToRendererChannel);
+        startTagRead();
+        mainWindow?.webContents.send("library:changed");
+      } catch (e) {
+        console.error("reloading database failed:", e);
+      }
+    })();
+  }, 400);
+}
+
+export async function start() {
+  const gotTheLock = app.requestSingleInstanceLock();
+  if (!gotTheLock) {
+    app.quit();
+    return;
+  }
+
+  app.on("second-instance", () => {
+    scheduleDbReload();
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
   });
 
+  Menu.setApplicationMenu(null);
+  setLanguage(detectInitialLanguage());
+
+  dbReady = initDb();
+  db = await dbReady;
+  initTagReader(db, sendToRendererChannel);
+
   createWindow();
+
+  /* Fire & forget: discover DLNA audio servers in the background. */
+  void runStartupDlnaDiscovery();
+
+  /* ── MPRIS (Linux D-Bus media key integration) ─────────────── */
+  try {
+    initMpris((action: string) => {
+      debugLog("[MPRIS]", action);
+      mainWindow?.webContents.send("media-key", action);
+    });
+  } catch (e) {
+    console.error("[MPRIS] initMpris failed:", e);
+  }
 }

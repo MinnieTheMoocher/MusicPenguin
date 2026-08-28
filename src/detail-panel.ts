@@ -21,6 +21,35 @@ const coverImg = document.getElementById("cover-image") as HTMLImageElement;
 const coverPlaceholder = document.getElementById("cover-placeholder") as HTMLElement;
 const coverArea = document.getElementById("cover-area") as HTMLElement;
 const searchBtnContainer = document.getElementById("search-btn-container")!;
+const form = document.getElementById("detail-form")!;
+
+/* Every editable detail field, selected generically: any text input or
+   textarea inside the details form. The rating span is intentionally
+   NOT covered — it lives in the SQLite DB and stays writable even for
+   DLNA tracks. */
+const detailInputs = document.querySelectorAll<HTMLTextAreaElement | HTMLInputElement>(
+  "#detail-form input[type='text'], #detail-form textarea"
+);
+
+let detailFieldsReadOnly = false;
+
+/* Hover hint shown on every locked field while a DLNA track is shown */
+function applyDetailFieldTitles(): void {
+  const hint = detailFieldsReadOnly
+    ? t("Attributes of remote DLNA tracks cannot be edited. Only tracks stored on the local file system can.")
+    : "";
+  detailInputs.forEach((el) => { el.title = hint; });
+}
+document.addEventListener("language-changed", applyDetailFieldTitles);
+
+function setDetailFieldsReadOnly(readonly: boolean): void {
+  /* Central switch: the class styles every detail field at once via CSS;
+     the real readonly attribute still enforces non-editability. */
+  form.classList.toggle("fields-readonly", readonly);
+  detailFieldsReadOnly = readonly;
+  detailInputs.forEach((el) => { el.readOnly = readonly; });
+  applyDetailFieldTitles();
+}
 
 let currentCoverPath: string | null = null;
 let currentTrackPath: string | null = null;
@@ -52,7 +81,11 @@ function cleanSearchTerm(s: string): string {
   for (const [pattern, replacement] of SEARCH_REPLACEMENTS) {
     s = s.replace(pattern, replacement);
   }
-  return s;
+  /* Drop bracketed annotations ("some song [live version]" -> "some song");
+     if nothing else remains ("[live version]"), keep the text without the
+     brackets instead of searching for an empty term. */
+  const stripped = s.replace(/\s*\[[^\]]*\]/g, "").trim();
+  return stripped || s.replace(/[\[\]]/g, "").trim();
 }
 
 function interpolateUrl(template: string): string {
@@ -76,15 +109,26 @@ function buildSearchButtons(urls: string[]): void {
   }
 }
 
+let currentSearchUrls: string[] = [];
+
+function refreshSearchButtons(): void {
+  buildSearchButtons(currentSearchUrls);
+}
+
 (async () => {
   const data = await window.electronAPI.loadSettings();
-  const urls = data?.["search-urls"] ?? DEFAULT_SEARCH_URLS;
-  buildSearchButtons(urls);
+  currentSearchUrls = data?.["search-urls"] ?? DEFAULT_SEARCH_URLS;
+  refreshSearchButtons();
 })();
+
+/* Labels are resolved via t() at build time — rebuild when the
+   language changes so the buttons follow the active UI language. */
+document.addEventListener("language-changed", refreshSearchButtons);
 
 pathInput.addEventListener("change", async () => {
   const oldPath = currentTrackPath;
   if (!oldPath) return;
+  if (pathInput.readOnly) return;
   const newPath = pathInput.value.trim();
   if (!newPath || newPath === oldPath) return;
 
@@ -126,13 +170,29 @@ function updateCoverTitle(): void {
 updateCoverTitle();
 document.addEventListener("language-changed", updateCoverTitle);
 
-coverArea.addEventListener("click", () => {
+/* One opener for click AND dblclick: events from the image and from
+   the ♫ placeholder bubble up to #cover-area alike, so theater mode
+   opens for tracks with and without cover art. */
+let lastOpenAttempt = 0;
+function openCoverTheater(): void {
   if (!currentCoverPath) return;
-  showTheaterMode(currentCoverPath);
-});
+  const now = Date.now();
+  /* One gesture must trigger exactly one open attempt; without this,
+     a double-click would run showTheaterMode three times (2 clicks +
+     dblclick) and redo all the IPC work. */
+  if (now - lastOpenAttempt < 400) return;
+  lastOpenAttempt = now;
+  void showTheaterMode(currentCoverPath);
+}
+coverArea.addEventListener("click", openCoverTheater);
+coverArea.addEventListener("dblclick", openCoverTheater);
 
 export function showDetails(item: ListItem | null): void {
   if (item) {
+    /* DLNA tracks are streamed from a remote server — their metadata
+       cannot be written back to any file, so every field is read-only
+       except the rating (persisted in the local SQLite DB). */
+    setDetailFieldsReadOnly(!!item.dlna);
     currentTrackPath = item.trackPath;
     currentArtist = item.artist ?? "";
     currentTitle = item.title ?? "";
@@ -157,6 +217,7 @@ export function showDetails(item: ListItem | null): void {
     commentInput.value = item.comment ?? "";
     loadCover(item.trackPath);
   } else {
+    setDetailFieldsReadOnly(false);
     currentTrackPath = null;
     currentArtist = "";
     currentTitle = "";
@@ -184,16 +245,7 @@ export function showDetails(item: ListItem | null): void {
   }
 }
 
-const form = document.getElementById("detail-form")!;
-
 /* ── ESC to restore & blur ───────────────────────────────── */
-const detailInputs = [
-  pathInput, titleInput, artistInput, albumInput,
-  trackNoInput, discNoInput, albumArtistInput,
-  genreInput, yearInput, composerInput, conductorInput,
-  bpmInput, commentInput,
-];
-
 for (const el of detailInputs) {
   el.addEventListener("focus", () => {
     el.dataset.originalValue = el.value;
