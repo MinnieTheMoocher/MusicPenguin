@@ -1,5 +1,5 @@
 import { FolderNode, fileCountLabel, saveDlnaServers, loadDlnaServers, loadFolders, runFullScan, subscribeDlnaProgress, subscribeDlnaServerChanges } from "./scanner.js";
-import { DLNA_SERVER } from "./icons.js";
+import { DLNA_SERVER, ICON_FOLDER_CLOSED, ICON_FOLDER_OPEN } from "./icons.js";
 import { t } from "../common/i18n/index.js";
 import { debugLog } from "./debug-log.js";
 
@@ -101,7 +101,7 @@ export async function initFoldersDialog(
     li.dataset.depth = String(depth);
     li.dataset.folderPath = node.path;
     li.tabIndex = 0;
-    li.style.paddingLeft = `${8 + depth * 20}px`;
+    li.style.setProperty("--depth", String(depth));
 
     li.addEventListener("click", () => {
       folderList.querySelectorAll(".folder-item").forEach((el) => el.classList.remove("selected"));
@@ -113,26 +113,31 @@ export async function initFoldersDialog(
     expandBtn.className = "btn-expand";
     expandBtn.title = t("Expand folder");
     const wasExpanded = !!(node.children && node.children.length > 0);
+    /* A folder with a known-empty children list has no subfolders, so it
+       cannot be expanded — keep its button clickable only when there is
+       actually something to reveal. */
+    expandBtn.disabled = Array.isArray(node.children) && node.children.length === 0;
     if (wasExpanded) expandBtn.classList.add("expanded");
-    expandBtn.textContent = wasExpanded ? "📂" : "📁";
+    expandBtn.innerHTML = wasExpanded ? ICON_FOLDER_OPEN : ICON_FOLDER_CLOSED;
 
     expandBtn.addEventListener("click", async (e) => {
       e.stopPropagation();
       if (expandBtn.classList.contains("expanded")) {
         expandBtn.classList.remove("expanded");
-        expandBtn.textContent = "📁";
+        expandBtn.innerHTML = ICON_FOLDER_CLOSED;
         expandBtn.title = t("Expand folder");
         removeChildren(li);
       } else {
         expandBtn.classList.add("expanded");
-        expandBtn.textContent = "📂";
+        expandBtn.innerHTML = ICON_FOLDER_OPEN;
         expandBtn.title = t("Collapse folder");
         const subdirs = await window.electronAPI.listSubdirs(node.path);
         if (subdirs.length === 0) {
           expandBtn.classList.remove("expanded");
-          expandBtn.textContent = "📁";
+          expandBtn.innerHTML = ICON_FOLDER_CLOSED;
           expandBtn.title = t("Expand folder");
           node.children = [];
+          expandBtn.disabled = true;
           return;
         }
         const oldChildren = new Map<string, FolderNode>();
@@ -211,9 +216,7 @@ export async function initFoldersDialog(
     if (folders.length === 0) {
       const empty = document.createElement("li");
       empty.textContent = t("No folders added yet.");
-      empty.style.color = "var(--text-secondary)";
-      empty.style.fontSize = "0.82rem";
-      empty.style.padding = "6px 8px";
+      empty.className = "folder-empty";
       folderList.appendChild(empty);
       return;
     }
@@ -234,6 +237,8 @@ export async function initFoldersDialog(
           path: p,
           enabled: true,
         }));
+      } else {
+        newNode.children = [];
       }
     } catch { /* ignore — leave collapsed */ }
     folders.push(newNode);
@@ -271,13 +276,19 @@ export async function initFoldersDialog(
 
     const iconSpan = document.createElement("span");
     iconSpan.className = "dlna-icon";
-    const img = document.createElement("img");
     /* Icon persisted with the entry (captured during discovery), so it
-       renders immediately even before the next search finishes. */
-    img.src = entry["icon-url"] || DLNA_SERVER;
-    img.alt = "";
-    img.draggable = false;
-    iconSpan.appendChild(img);
+       renders immediately even before the next search finishes. Servers
+       without an announced icon get the inline server placeholder. */
+    const iconUrl = entry["icon-url"];
+    if (iconUrl) {
+      const img = document.createElement("img");
+      img.src = iconUrl;
+      img.alt = "";
+      img.draggable = false;
+      iconSpan.appendChild(img);
+    } else {
+      iconSpan.innerHTML = DLNA_SERVER;
+    }
 
     /* Friendly server name only — no IP/port in the UI. Falls back to
        the URL-derived host only when the server announced no name. */
@@ -336,12 +347,14 @@ export async function initFoldersDialog(
   btn.addEventListener("click", () => {
     foldersChanged = false;
     overlay.classList.remove("hidden");
+    btn.classList.add("active");
     window.electronAPI.stopTagRead();
     renderDlnaList();
   });
 
   async function close(): Promise<void> {
     overlay.classList.add("hidden");
+    btn.classList.remove("active");
     if (foldersChanged) {
       runDialogScan();
     } else {

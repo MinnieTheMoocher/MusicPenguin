@@ -11,7 +11,8 @@ import { setLanguage, t } from "../common/i18n/index";
 
 app.setPath("userData", path.join(os.homedir(), ".cache", "musicpenguin"));
 app.setAppUserModelId("musicpenguin");
-import { detectInitialTheme } from "./kde-theme";
+import { detectInitialDesign } from "./desktop";
+import { discoverDesigns, designHrefMap } from "./designs";
 import { initDb, loadFiles, storeFiles, lookupPaths, searchFiles, countProblematicFiles, getProblematicFiles, clearAllFiles, setRating, moveFilePath, incrementPlaycount, deleteFiles, saveDb, fillMissingDuration } from "./database";
 import { initTagReader, startTagRead, stopTagReader, prioritizeFiles, runIncrementalScan, scanSpecificFiles, donePromise, rescanFiles } from "./tag-reader";
 import { scanDlnaLibrary, fixupMissingDurations } from "./dlna";
@@ -131,11 +132,103 @@ function saveWindowState() {
   } catch { /* best-effort */ }
 }
 
+/* ── Window minimum size ──────────────────────────────────
+   The now-playing bar must always stay fully visible in the OS root
+   window (the BrowserWindow). Its height comes from `--now-playing-h`
+   in the base CSS (64px) and grows for custom skins (up to 104px); the
+   renderer reports the measured value after each design switch, and 64
+   acts as a fallback before that report.
+
+   Enforcement never throttles a normal resize: the WM min-size hint is
+   refreshed only when the computed value actually changes, and a fast
+   (30 ms) "enforcement burst" runs ONLY while the bounds are at/below
+   the minimum, stopping the moment the window is back at or above it —
+   so a drag that dips under the limit snaps back smoothly instead of
+   hanging at the goal size. */
+const NOW_PLAYING_FALLBACK_HEIGHT = 64;
+const MIN_WINDOW_WIDTH = 240;
+const MIN_ENFORCE_INTERVAL_MS = 30;
+let nowPlayingBarHeight = NOW_PLAYING_FALLBACK_HEIGHT;
+let minHintSetWidth = 0;
+let minHintSetHeight = 0;
+let frameHeight = 0;
+let frameKnown = false;
+let minEnforceTimer: NodeJS.Timeout | null = null;
+
+function currentMinWindowHeight(): number {
+  if (!frameKnown && mainWindow) {
+    try {
+      const bounds = mainWindow.getBounds();
+      const contentBounds = mainWindow.getContentBounds();
+      frameHeight = Math.max(0, bounds.height - contentBounds.height);
+      frameKnown = true;
+    } catch { /* keep frame 0 */ }
+  }
+  return Math.ceil(nowPlayingBarHeight) + frameHeight;
+}
+
+/* WM min-size hint — refreshed only when its value really changes, so
+   interactive drags are not interrupted by hint churn. */
+function updateMinSizeHint(): void {
+  if (!mainWindow) return;
+  const minH = currentMinWindowHeight();
+  if (minHintSetWidth === MIN_WINDOW_WIDTH && minHintSetHeight === minH) return;
+  minHintSetWidth = MIN_WINDOW_WIDTH;
+  minHintSetHeight = minH;
+  try { mainWindow.setMinimumSize(MIN_WINDOW_WIDTH, minH); } catch { /* window gone */ }
+}
+
+/* Hard clamp on the OS root window: pull its bounds back to the minimum
+   the moment they fall below it. Returns true when a correction ran. */
+function clampWindowToMinimum(): boolean {
+  if (!mainWindow) return false;
+  try {
+    const cur = mainWindow.getBounds();
+    const minH = currentMinWindowHeight();
+    if (cur.width < MIN_WINDOW_WIDTH || cur.height < minH) {
+      mainWindow.setSize(Math.max(cur.width, MIN_WINDOW_WIDTH), Math.max(cur.height, minH));
+      return true;
+    }
+  } catch { /* window gone */ }
+  return false;
+}
+
+/* Keep re-clamping on a tight loop only while the window is still below
+   the minimum; stop as soon as it is back at/above the limit. */
+function startEnforcementBurst(): void {
+  if (minEnforceTimer) return;
+  minEnforceTimer = setInterval(() => {
+    clampWindowToMinimum();
+    const cur = mainWindow?.getBounds();
+    if (cur && cur.width >= MIN_WINDOW_WIDTH && cur.height >= currentMinWindowHeight()) {
+      if (minEnforceTimer) { clearInterval(minEnforceTimer); minEnforceTimer = null; }
+    }
+  }, MIN_ENFORCE_INTERVAL_MS);
+  minEnforceTimer.unref?.();
+}
+
+/* Stop the enforcement burst immediately. Called on quit so the resize
+   watchdog can never hold up app shutdown (e.g. when the user closes the
+   window via the top-right X button): the timer is unref'd as well, but
+   an explicit clear here guarantees the guard is gone for good. */
+function stopEnforcementBurst(): void {
+  if (minEnforceTimer) { clearInterval(minEnforceTimer); minEnforceTimer = null; }
+}
+
+function enforceWindowMinimumSize(): void {
+  updateMinSizeHint();
+  if (clampWindowToMinimum()) startEnforcementBurst();
+}
+
 /* ── Window ──────────────────────────────────────────────── */
 function createWindow() {
   const winOpts: Electron.BrowserWindowConstructorOptions = {
     width: 800,
     height: 600,
+    /* Coarse standby before the renderer reports the exact now-playing
+       bar height (see enforceWindowMinimumSize): keeps the bar visible
+       even right after the window appears. */
+    minHeight: 160,
     show: false,
     backgroundColor: "#000000",
     icon: APP_ICON,
@@ -184,13 +277,31 @@ function createWindow() {
   mainWindow.once("ready-to-show", () => {
     applySavedState();
     mainWindow!.show();
+    enforceWindowMinimumSize();
   });
 
+  mainWindow.on("resize", enforceWindowMinimumSize);
+  mainWindow.on("restore", enforceWindowMinimumSize);
+  mainWindow.on("unmaximize", enforceWindowMinimumSize);
   mainWindow.on("close", saveWindowState);
+  mainWindow.on("closed", () => { if (minEnforceTimer) { clearInterval(minEnforceTimer); minEnforceTimer = null; } });
+
+  /* The initial design id is resolved here (saved setting → desktop scheme →
+     default) and validated against the designs discovered at runtime, which
+     covers both built-in and user-provided custom designs. */
+  const availableDesigns = discoverDesigns(path.dirname(RENDERER_HTML));
+  const designIds = new Set<string>(designHrefMap(availableDesigns).keys());
+  const initialDesignId = detectInitialDesign(SETTINGS_PATH, designIds);
+  const initialDesignHref =
+    designHrefMap(availableDesigns).get(initialDesignId) ??
+    path.join("designs", "dark_gray", "musicpenguin_design.css");
 
   mainWindow.loadFile(RENDERER_HTML, {
     query: {
-      theme: detectInitialTheme(SETTINGS_PATH),
+      /* base64 so the href survives the URL query round-trip losslessly
+         (WHATWG query encoding maps spaces to "+" and would otherwise
+         corrupt folder names containing spaces, `+`, `%`, "&" ...) */
+      design: Buffer.from(initialDesignHref, "utf8").toString("base64"),
       lang: detectInitialLanguage(),
     },
   });
@@ -219,6 +330,15 @@ ipcMain.on("settings:saveSync", (_event, partial: Record<string, unknown>) => {
   });
 });
 
+/* The renderer reports the measured now-playing bar height (on startup
+   and after every design switch) so the window's minimum height keeps
+   that bar fully visible regardless of the active design. */
+ipcMain.on("window:setNowPlayingHeight", (_event, height: number) => {
+  const h = Number.isFinite(height) && height > 0 ? height : 0;
+  nowPlayingBarHeight = h > 0 ? h : NOW_PLAYING_FALLBACK_HEIGHT;
+  enforceWindowMinimumSize();
+});
+
 /* settings */
 ipcMain.handle("settings:load", async () => {
   return runWithSettingsLock(() => {
@@ -242,6 +362,11 @@ ipcMain.handle("settings:save", async (_event, partial: Record<string, unknown>)
   await runWithSettingsLock(() => {
     mutateSettings(partial || {});
   });
+});
+
+/* designs:list — runtime design discovery (built-in + custom folders) */
+ipcMain.handle("designs:list", async () => {
+  return discoverDesigns(path.dirname(RENDERER_HTML));
 });
 
 /* dialog:pickFolder */
@@ -902,6 +1027,7 @@ ipcMain.handle("shell:showInExternalFileExplorer", async (_event, filePath: stri
 /* ── App lifecycle ───────────────────────────────────────── */
 
 app.on("before-quit", () => {
+  stopEnforcementBurst();
   saveWindowState();
 });
 

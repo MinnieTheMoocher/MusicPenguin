@@ -44,11 +44,15 @@ find node_modules -name '*.node' -type f \
 APPDIR="${STAGING}/opt/${APP}"
 mkdir -p "${APPDIR}"
 mkdir -p "${APPDIR}/src/renderer"
-cp src/renderer/index.html src/renderer/style.css src/renderer/musicpenguin256.png "${APPDIR}/src/renderer/"
+cp -r src/renderer/designs "${APPDIR}/src/renderer/designs"
+cp src/renderer/index.html src/renderer/musicpenguin256.png "${APPDIR}/src/renderer/"
 mkdir -p "${APPDIR}/src/preload"
 cp src/preload/preload.js "${APPDIR}/src/preload/preload.js"
 cp main.js package.json "${APPDIR}/"
 cp -r dist "${APPDIR}/"
+# Example custom designs, seeded into the user's design folder by postinst.
+mkdir -p "${APPDIR}/example-designs"
+cp -r package/custom_designs/* "${APPDIR}/example-designs/"
 
 # Copy complete runtime dependency tree
 cp -a node_modules "${APPDIR}/"
@@ -65,7 +69,7 @@ chmod 755 "${BINDIR}/${APP}"
 ICONS_BASE="${STAGING}/usr/share/icons/hicolor"
 for size in 32 64 128 256; do
   mkdir -p "${ICONS_BASE}/${size}x${size}/apps"
-  cp "package/common/${APP}${size}.png" "${ICONS_BASE}/${size}x${size}/apps/${APP}.png"
+  cp "package/${APP}${size}.png" "${ICONS_BASE}/${size}x${size}/apps/${APP}.png"
 done
 
 # ── /usr/share/applications/ ────────────────────────────────

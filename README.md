@@ -43,29 +43,46 @@ and you can choose which properties of the media items to search.
 
 English, French, Spanish, German
 
-## Screenshot
+## Screenshots
 
-<img src="doc/MusicPenguin_Screenshot.png" width=800 alt="MusicPenguin Screenshot">
+### Default Design: Dark Gray
+
+<img src="doc/MusicPenguin_Screenshot_01.png" width=800 alt="MusicPenguin Screenshot 01">
+
+### Fullscreen Theater Mode
+
+<img src="doc/MusicPenguin_Screenshot_02.png" width=800 alt="MusicPenguin Screenshot 02">
+
+### Design: 80s Stereo 01
+
+<img src="doc/MusicPenguin_Screenshot_03.png" width=800 alt="MusicPenguin Screenshot 03">
+
+### Design: 80s Stereo 02
+
+<img src="doc/MusicPenguin_Screenshot_04.png" width=800 alt="MusicPenguin Screenshot 04">
 
 ## License
 
-MIT, see [LICENSE](./LICENSE)
+* MusicPenguin: MIT, see [LICENSE](./LICENSE)
+* Tabler Icons: MIT, see [LICENSE](./src/renderer/icons/LICENSE.md)
 
-## Installation
+## Install / Uninstall
+
+### Debian, Ubuntu, Kubuntu, Linux Mint et.al. (*.deb)
 
 The package is self-contained, no node.js, npm, or separate Electron installation is necessary. Just
-[download the latest `*.deb` installation file](https://github.com/MinnieTheMoocher/MusicPenguin/releases)
-and then run
+[download the latest `*.deb` installation file](https://github.com/MinnieTheMoocher/MusicPenguin/releases).
 
-```bash
-sudo dpkg -i musicpenguin_0.0.3_amd64.deb
-```
+* Install:   `sudo apt install ./musicpenguin_0.0.4_amd64.deb`
+* Uninstall: `sudo apt remove musicpenguin`
 
-## Un-Installation
+### OpenSUSE, Fedora et.al. (*.rpm)
 
-```bash
-sudo dpkg -r musicpenguin
-```
+The package is self-contained, no node.js, npm, or separate Electron installation is necessary. Just
+[download the latest `*.rpm` installation file](https://github.com/MinnieTheMoocher/MusicPenguin/releases).
+
+* Install:   `sudo zypper install musicpenguin-0.0.4-1.x86_64.rpm`
+* Uninstall: `sudo zypper remove musicpenguin`
 
 ## Building from Source Code
 

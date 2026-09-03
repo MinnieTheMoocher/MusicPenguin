@@ -1,0 +1,72 @@
+/* MusicPenguin Design: WHITE
+
+   Author: MinnieTheMoocher
+
+   This file shall only change CSS variables but not introduce own CSS rules.
+*/
+
+:root {
+  --bg: #ffffff;
+  --panel-bg: #fafafa;
+  --groups-panel-bg: #fafafa;
+  --details-panel-bg: #ffffff;
+  --search-panel-bg: #fafafa;
+  --now-playing-bg: #f0f0f0;
+  --playlist-bg: #fafafa;
+  --overlay-bg: rgba(0, 0, 0, 0.35);
+  --dialog-bg: #ffffff;
+
+  --border: #cccccc;
+
+  --text: #333333;
+  --text-muted: #444444;
+
+  --primary: #ff9800;
+  --primary-hover: #f57c00;
+  --button-text-primary: #ffffff;
+  --primary-disabled: #837e7e;
+  --button-text-primary-disabled: #3d3636;
+
+  --theater-btn-bg: var(--primary);
+  --theater-btn-hover: var(--primary-hover);
+  --theater-btn-text: var(--button-text-primary);
+  --theater-btn-disabled: var(--primary-disabled);
+  --theater-btn-text-disabled: var(--button-text-primary-disabled);
+
+  --accent: #ff9800;
+  --accent-hover: #f57c00;
+  --button-text-accent: #ffffff;
+  --accent-disabled: #837e7e;
+  --button-text-accent-disabled: #3d3636;
+
+  --divider: #dddddd;
+  --divider-hover: #888888;
+
+  --hover: #e0e0e0;
+
+  --selected: #cce5ff;
+  --text-selected: #333333;
+
+  --input-bg: #ffffff;
+  --input-invalid-bg: #5c1a1a;
+  --input-border: #cccccc;
+
+  --toggle-off: #cccccc;
+  --toggle-on: #555555;
+
+  --progress-track: #dddddd;
+  --progress-fill: #ff9800;
+  --row-alt: #f0f0f0;
+  --playlist-row-alt: #eef4f0;
+
+  --scrollbar-thumb: var(--border);
+  --scrollbar-thumb-hover: var(--divider-hover);
+
+  --danger: #c62828;
+  --danger-hover: #e53935;
+  --button-text-danger: #ffffff;
+
+  --shadow-light: rgba(0, 0, 0, 0.4);
+  --shadow-medium: rgba(0, 0, 0, 0.25);
+  --shadow-heavy: rgba(0, 0, 0, 0.3);
+}

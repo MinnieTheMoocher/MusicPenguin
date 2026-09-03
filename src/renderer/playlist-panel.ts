@@ -6,7 +6,7 @@ import { audio } from "./audio.js";
 import { getThumbnail, fetchThumbnail } from "./thumbnail-cache.js";
 import { onPlaybackFailure } from "./playback-error.js";
 import { t } from "../common/i18n/index.js";
-import { ICON_SPEAKER, ICON_PLAY, ICON_PAUSE } from "./icons.js";
+import { ICON_SPEAKER, ICON_MUSIC_NOTE, ICON_CARET_UP, ICON_CARET_DOWN } from "./icons.js";
 import { passesMinAutoplayRating } from "./min-autoplay-rating.js";
 import { ARTIST_ALBUM_TRACKNO, SORTING_MODES, sortPlaylistByArtistAlbumTrackNo } from "./sorting.js";
 
@@ -161,10 +161,10 @@ function updatePlayPauseBtn(): void {
   const isPaused = audio.paused;
   const isPlaying = currentPlaylistIndex !== null;
   if (isPlaying && !isPaused) {
-    playlistPlayBtn.textContent = ICON_PAUSE;
+    playlistPlayBtn.classList.add("playing");
     playlistPlayBtn.title = t("Pause Playlist");
   } else {
-    playlistPlayBtn.textContent = ICON_PLAY;
+    playlistPlayBtn.classList.remove("playing");
     playlistPlayBtn.title = t("Play Playlist");
   }
 }
@@ -186,7 +186,7 @@ export function updatePlaylistPlayingIndicator(): void {
       const indicator = items[i]!.querySelector<HTMLElement>(".playlist-playing");
       if (indicator) {
         const di = firstIdx + i;
-        indicator.textContent = isActuallyPlaying() && di === currentPlaylistIndex ? ICON_SPEAKER : "";
+        indicator.innerHTML = isActuallyPlaying() && di === currentPlaylistIndex ? ICON_SPEAKER : "";
       }
     }
   } else {
@@ -196,10 +196,10 @@ export function updatePlaylistPlayingIndicator(): void {
       if (indicator) {
         const di = firstIdx + i;
         if (!placed && isActuallyPlaying() && di < playlist.length && playlist[di]!.path === selectedPath) {
-          indicator.textContent = ICON_SPEAKER;
+          indicator.innerHTML = ICON_SPEAKER;
           placed = true;
         } else {
-          indicator.textContent = "";
+          indicator.innerHTML = "";
         }
       }
     }
@@ -270,10 +270,24 @@ export function clearPlaylistPlaying(): void {
   updatePlayPauseBtn();
 }
 
+/* Empties the playlist entirely: used by the clear button and when the
+   library database is erased (nothing left to display anyway). */
+export function clearPlaylist(): void {
+  if (playlist.length === 0) return;
+  clearPlayingFlag();
+  playlist = [];
+  currentPlaylistIndex = null;
+  selectedIndices.clear();
+  renderPlaylist();
+  updatePlayPauseBtn();
+  persistState();
+  playlistStateChangeCallbacks.forEach((cb) => cb());
+}
+
 /* When new tracks land in the playlist while a MAIN-LIST track is
    currently playing and that track is part of the playlist, the
    playlist adopts it as its current entry: play/pause button reflects
-   playlist-playing mode, the 🔊 indicator anchors to that row and
+   playlist-playing mode, the speaker indicator anchors to that row and
    prev/next operate on the playlist from here on. */
 function adoptPlayingTrackIntoPlaylist(): void {
   if (currentPlaylistIndex !== null) return;
@@ -292,29 +306,49 @@ export function isPlaylistPlaying(): boolean {
   return currentPlaylistIndex !== null;
 }
 
+/* Best row to start prev/next from: the playing row while a playlist is
+   active, otherwise the last row the user selected in the playlist. */
+function navBaseIndex(): number | null {
+  if (currentPlaylistIndex !== null) return currentPlaylistIndex;
+  if (lastClickedIndex !== null && lastClickedIndex >= 0 && lastClickedIndex < playlist.length) {
+    return lastClickedIndex;
+  }
+  return null;
+}
+
+export function hasPlaylistNavBase(): boolean {
+  return navBaseIndex() !== null && playlist.length > 0;
+}
+
 export function canPlaylistPrev(): boolean {
   syncPlaylistIndex();
-  if (currentPlaylistIndex === null || playlist.length === 0) return false;
+  if (playlist.length === 0) return false;
+  const base = navBaseIndex();
+  if (base === null) return false;
   if (getShuffle()) return true;
-  if (currentPlaylistIndex > 0) return true;
+  if (base > 0) return true;
   return getRepeat() === "all";
 }
 
 export function canPlaylistNext(): boolean {
   syncPlaylistIndex();
-  if (currentPlaylistIndex === null || playlist.length === 0) return false;
+  if (playlist.length === 0) return false;
+  const base = navBaseIndex();
+  if (base === null) return false;
   if (getShuffle()) return true;
-  if (currentPlaylistIndex + 1 < playlist.length) return true;
+  if (base + 1 < playlist.length) return true;
   return getRepeat() === "all";
 }
 
 export function prevPlaylist(autoPlay = true): void {
   syncPlaylistIndex();
-  if (currentPlaylistIndex === null || playlist.length === 0) return;
+  if (playlist.length === 0) return;
+  const base = navBaseIndex();
+  if (base === null) return;
 
   if (getShuffle()) {
     const paths = playlist.map((e) => e.path);
-    const currentPath = playlist[currentPlaylistIndex]?.path ?? null;
+    const currentPath = playlist[base]?.path ?? null;
     const tried = new Set<string>();
     let picked: string | null = pickRandomExcluding(paths, currentPath);
     while (picked !== null && !isPlayableFile(picked)) {
@@ -330,28 +364,36 @@ export function prevPlaylist(autoPlay = true): void {
   }
 
   const n = playlist.length;
-  for (let j = currentPlaylistIndex - 1; j >= 0; j--) {
+  for (let j = base - 1; j >= 0; j--) {
     if (isPlayableFile(playlist[j]!.path)) { playFrom(j, autoPlay); return; }
   }
   if (getRepeat() === "all") {
-    for (let j = n - 1; j > currentPlaylistIndex; j--) {
+    for (let j = n - 1; j > base; j--) {
       if (isPlayableFile(playlist[j]!.path)) { playFrom(j, autoPlay); return; }
     }
   }
 }
 export function advancePlaylist(autoPlay = true): void {
   syncPlaylistIndex();
-  if (currentPlaylistIndex === null) return;
-  /* Auto-advance skips tracks below the configured minimum rating.
-     Repeat-one replays the CURRENT track — it was already chosen, so
-     the filter must not abort it. */
+  if (playlist.length === 0) return;
+  const base = navBaseIndex();
+  if (base === null) return;
   const ratingFilter = autoPlay && getRepeat() !== "one";
+  /* A MANUAL next (autoPlay=false) must always advance to the NEXT
+     track — repeat-one only governs auto-advance, never the user
+     pressing next. */
+  const manualRepeatOne = !autoPlay && getRepeat() === "one";
   const tried = new Set<number>();
-  let next = getNextIndex(currentPlaylistIndex);
+  let next = manualRepeatOne
+    ? base + 1
+    : getNextIndex(base);
+  if (manualRepeatOne && (next as number) >= playlist.length) {
+    next = getRepeat() === "all" ? 0 : null;
+  }
   while (next !== null && (!isPlayableFile(playlist[next]!.path) || (ratingFilter && !passesMinAutoplayRating(playlist[next]!.rating)))) {
     if (tried.has(next)) { next = null; break; }
     tried.add(next);
-    next = getNextIndex(next);
+    next = manualRepeatOne ? next + 1 : getNextIndex(next);
   }
   if (next === null) {
     clearPlayingFlag();
@@ -406,7 +448,7 @@ function measureRowHeight(): number {
   temp.className = "playlist-item";
   temp.style.visibility = "hidden";
   temp.style.position = "absolute";
-  temp.innerHTML = '<span class="playlist-playing"></span><span class="playlist-cover"><span class="playlist-cover-placeholder">\u266B</span></span><span class="playlist-title"><span class="playlist-title-line">Xg</span><span class="playlist-artist-line">Xg</span></span><span class="playlist-duration">00:00</span>';
+  temp.innerHTML = `<span class="playlist-playing"></span><span class="playlist-cover"><span class="playlist-cover-placeholder">${ICON_MUSIC_NOTE}</span></span><span class="playlist-title"><span class="playlist-title-line">Xg</span><span class="playlist-artist-line">Xg</span></span><span class="playlist-duration">00:00</span>`;
   playListEl.appendChild(temp);
   const h = temp.offsetHeight;
   temp.remove();
@@ -434,7 +476,7 @@ function buildRows(): void {
     coverSpan.className = "playlist-cover";
     const placeholder = document.createElement("span");
     placeholder.className = "playlist-cover-placeholder";
-    placeholder.textContent = "\u266B";
+    placeholder.innerHTML = ICON_MUSIC_NOTE;
     coverSpan.appendChild(placeholder);
 
     const titleSpan = document.createElement("span");
@@ -1190,13 +1232,7 @@ export function initPlaylist(
   });
 
   clearPlaylistBtn.addEventListener("click", () => {
-    if (playlist.length === 0) return;
-    clearPlayingFlag();
-    playlist = [];
-    currentPlaylistIndex = null;
-    selectedIndices.clear();
-    renderPlaylist();
-    persistState();
+    if (playlist.length > 0) clearPlaylist();
   });
 
   const savePlaylistBtn = document.getElementById("save-playlist-btn") as HTMLButtonElement | null;
@@ -1416,7 +1452,7 @@ export function initPlaylist(
 
       const ascBtn = document.createElement("button");
       ascBtn.className = "playlist-sort-btn" + (playlistSortColumn === col.key && playlistSortDirection === "asc" ? " active" : "");
-      ascBtn.textContent = "\u25B2";
+      ascBtn.innerHTML = ICON_CARET_UP;
       ascBtn.title = t("Sort ascending");
       ascBtn.addEventListener("click", () => {
         playlistSortColumn = col.key;
@@ -1430,7 +1466,7 @@ export function initPlaylist(
 
       const descBtn = document.createElement("button");
       descBtn.className = "playlist-sort-btn" + (playlistSortColumn === col.key && playlistSortDirection === "desc" ? " active" : "");
-      descBtn.textContent = "\u25BC";
+      descBtn.innerHTML = ICON_CARET_DOWN;
       descBtn.title = t("Sort descending");
       descBtn.addEventListener("click", () => {
         playlistSortColumn = col.key;

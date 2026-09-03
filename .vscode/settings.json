@@ -25,6 +25,7 @@
   },
   "cSpell.words": [
     "allfiles",
+    "aluminium",
     "APIC",
     "autoplay",
     "beautifications",
@@ -42,6 +43,8 @@
     "ffprobe",
     "flac",
     "gedit",
+    "gsettings",
+    "iconset",
     "kdedefaults",
     "kdeglobals",
     "libasound",
@@ -64,8 +67,10 @@
     "sqljs",
     "SSDP",
     "subdirs",
+    "tabler",
     "theatermode",
     "unscanned",
+    "upnp",
     "Vorbis"
   ]
 }

@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   listSubdirs: (dirPath) => ipcRenderer.invoke("fs:listSubdirs", dirPath),
   loadSettings: () => ipcRenderer.invoke("settings:load"),
   saveSettings: (settings) => ipcRenderer.invoke("settings:save", settings),
+  listDesigns: () => ipcRenderer.invoke("designs:list"),
   storeFiles: (files) => ipcRenderer.invoke("db:storeFiles", files),
   loadFiles: () => ipcRenderer.invoke("db:loadFiles"),
   clearDatabase: () => ipcRenderer.invoke("db:clearDatabase"),
@@ -79,5 +80,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return () => ipcRenderer.removeListener("media-key", handler);
   },
   updateMprisState: (state) => ipcRenderer.send("mpris:updateState", state),
+  setNowPlayingHeight: (height) => ipcRenderer.send("window:setNowPlayingHeight", height),
   debugLog: (line) => ipcRenderer.invoke("debug:log", line),
 });

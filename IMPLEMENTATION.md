@@ -1,5 +1,7 @@
 # MusicPenguin Implementation
 
+<img src="doc/musicpenguin256.png" width=150 alt="MusicPenguin icon">
+
 ## Build & Run
 
 ```bash
@@ -7,29 +9,28 @@ npm ci                  # install dependencies
 npm run build           # typecheck, then builds both bundles (main + renderer)
 npm run typecheck       # tsc --noEmit — strict type-check only (no output emitted)
 npm run build:main      # esbuild bundles src/main/ → dist/main-bundle.js (CJS)
-npm run build:renderer  # esbuild bundles src/ → dist/bundle.js (ESM)
+npm run build:renderer  # esbuild bundles src/ → dist/bundle.js (ESM); loads *.svg as raw text (`--loader:.svg=text`)
 npm run start           # build + launch Electron window
 npm run electron        # launch without re-building
-npm run watch           # typecheck once, then rebuild renderer bundle on file changes
+npm run watch           # typecheck once, then rebuild renderer bundle on file changes (same svg loader as build:renderer)
 ```
 
 ## Files
 
-| File                        | Purpose
-|-----------------------------|--------
-| main.js                     | Electron entry (CommonJS shim)
-| dist/main-bundle.js         | Bundled main process (src/main)
-| src/preload/preload.js      | contextBridge → window.electronAPI (plain CommonJS, never transpiled)
-| src/renderer/index.html     | HTML layout with all panels
-| src/renderer/style.css      | Full stylesheet, dark/light themes
-| src/renderer/musicpenguin256.png | Runtime logo (window icon + about dialogs)
-| dist/bundle.js              | Bundled renderer (src/renderer/index.ts, ESM)
-| src/main/                   | Main-process TypeScript source files
-| src/common/                 | Shared code used by both processes: `config.ts`, `i18n/`, `electron-types.d.ts`
-| src/common/i18n/            | Localization module (`ITranslate` contract, `en-us`/`de-de`/`fr-fr`/`es-es` dictionaries, `t()` lookup)
-| src/renderer/               | Renderer TypeScript source files
-| CHANGELOG.md                   | Hand-maintained changelog (project documentation only)
-| doc/                        | Screenshots + logo for README (project documentation only)
+| File                                 | Purpose
+|--------------------------------------|----------------------------------------------
+| main.js                              | Electron entry (CommonJS shim)
+| dist/main-bundle.js                  | Bundled main process (src/main)
+| src/preload/preload.js               | contextBridge → window.electronAPI (plain CommonJS, never transpiled)
+| src/main/                            | Main-process TypeScript source files
+| src/common/                          | Shared code used by both processes: `config.ts`, `i18n/`, `electron-types.d.ts`
+| src/common/i18n/                     | Localization module (`ITranslate` contract, `en-us`/`de-de`/`fr-fr`/`es-es` dictionaries, `t()` lookup)
+| src/renderer/index.html              | HTML layout, containing no styling at all, just logical structure
+| src/renderer/musicpenguin_base.css   | base stylesheet; every design loads on top of it
+| src/renderer/designs/<id>            | custom designs layered on top of musicpenguin_base.css
+| src/renderer/icons/                  | icon set of this app, currently tabler-icons
+| ~/.config/musicpenguin/designs/<id>/ | custom designs provided by the user, discovered at runtime
+| package/custom_designs/              | example custom designs, copied to `~/.config/musicpenguin/designs/` upon app installation
 
 **Key point**: `main.js` and `src/preload/preload.js` are plain CommonJS, never transpiled. `src/` and
 `src/main/` + `src/renderer/` files are TypeScript bundled by esbuild (types stripped). TypeScript
@@ -47,10 +48,11 @@ produced by esbuild, not `tsc`.
 
 **No inline `require()` in TypeScript**: all module loading in `src/` (renderer and main process)
 must go through top-level `import` statements — never inline `require()` calls. Only `main.js`
-and `src/preload/preload.js` (plain CommonJS) may use `require`. Since `sql.js` ships
-no type declarations, its type is provided by the ambient `declare module "sql.js"` in
-`src/main/sqljs.d.ts`. Type casts must be typed assertions to concrete types (e.g.
-`as Buffer`); `as any` is forbidden because it bypasses the strict type check.
+and `src/preload/preload.js` (plain CommonJS) may use `require`. Packages that ship
+no type declarations get an ambient `declare module` shim: `sql.js` in `src/main/sqljs.d.ts`
+and `dbus-native` in `src/main/dbus-native.d.ts`. Type casts must be typed assertions to
+concrete types (e.g. `as Buffer`); `as any` is forbidden because it bypasses the strict type
+check.
 
 ## App Files Used at Runtime
 
@@ -58,7 +60,7 @@ no type declarations, its type is provided by the ambient `declare module "sql.j
 |----------------------------------------------------|--------
 | ~/.config/musicpenguin/musicpenguin-settings.json  | persisted user preferences
 | ~/.config/musicpenguin/musicpenguin-library.sqlite | SQLite database storing the known tags of all known files
-| ~/.config/musicpenguin.log                         | debug log (only when enabled in Settings)
+| ~/.config/musicpenguin/designs                     | custom user-edited designs
 | ~/.cache/musicpenguin/                             | Electron/Chromium cache
 
 ## Supported Media Formats
@@ -128,7 +130,8 @@ in the settings dialog (`playback-bar-position` in musicpenguin-settings.json).
 ```
 
 Draggable splitters between all three vertical columns, a horizontal splitter between list and detail,
-and cross-handle knobs at both intersections (left: groups×list, right: playlist×list).
+and invisible (handle-only, no visible knob) cross-handle drag areas at both intersections
+(left: groups×list, right: playlist×list).
 
 The bottom of the groups panel has four icon buttons:
 **Folders** (opens the folder manager), **Scan** (re-scans all folders), **Problematic** (lists
@@ -173,57 +176,16 @@ CREATE TABLE files (
 );
 ```
 
-Schema version tracked via `PRAGMA user_version` (`DB_VERSION` in database.ts):
-versions `<= 1` mean the layout released with app version 0.0.1, version `2`
-adds DLNA support. Version `3` redefines duration semantics: `0` means
-"genuinely zero-length", while an UNKNOWN duration is stored as `NULL` —
-the migration converts legacy `0` rows to `NULL`. If the DB file doesn't exist at startup, it's created from
-scratch, complete with all columns. Released 0.0.1 databases already contain
-everything except `dlna`, so that flag is the single `ALTER TABLE ... ADD COLUMN`
-migration (best-effort, ignored when it already exists).
-
-Duration determination happens in three layers, all persisting to this table:
-1. tag/attribute metadata (music-metadata for files, DIDL-Lite `res@duration`
-   for DLNA items). Servers that announce nothing (e.g. MinimServer omits
-   `res@duration` for some `.m4a` files) store NULL, never 0.
-2. an ffprobe pass (`fixupMissingDurations` in dlna.ts, run ONLY as a
-   fixup after a scanning workflow — incremental file scan, DLNA scan — never at app start;
-   3 probes in parallel, 30 s timeout each, aborted after 5 consecutive failures)
-   over every row with `duration IS NULL`.
-3. whatever still plays with a NULL duration learns it from the renderer's
-   `<audio>` element on `loadedmetadata` and persists it via `db:fillDuration`
-   (`fillMissingDuration()` only fills NULL gaps — known values are never
-   overwritten). Learned durations are pushed to the UI via the
-   `library:durations-fixed` channel / a `track-duration-known` DOM event.
-
-Rating ownership: `rating = 0` means UNRATED. This means that a user rating has not yet occurred
-or is unwanted. A later tag re-scanning that delivers a rating !=0 is therefore ALLOWED to overwrite
-the value 0 in the sqlite database.
-
-For DLNA tracks (`dlna = 1`) both `path` and `filename` store the stream URL of the
-item (`http://...`), metadata comes from the DIDL-Lite fragment of the Browse response,
-and `tags_scanned_at` is stamped immediately so the background tag reader never tries
-to parse a remote URL. DLNA rows are excluded from the filesystem sweep in
-`runIncrementalScan` (`WHERE dlna = 0`) and are managed exclusively by `dlna.ts`.
-
-Stream URLs of newly discovered tracks are persisted under the server's **DNS name**
-instead of its raw IP when one can be verified: at scan start — before any track is
-read — every enabled server's control-URL IP literal is reverse-resolved in parallel
-(PTR records + getnameinfo, 2.5 s timeouts) and a name is accepted only if a forward
-lookup points back at the same IP; when several names resolve, the SHORTEST one wins —
-names announced as "<name>.fritz.box" by FRITZ!Box routers are also tried WITHOUT that
-suffix, and the short form is used when it resolves to the same address.
-Enumeration then rewrites track/art URLs before dedup/storage/progress see them, so
-discovered tracks land in the DB under DNS-name URLs right away. Rows already stored
-are never rewritten: unresolvable hosts keep raw IP URLs, and existing rows stay as
-they are.
+Schema version tracked via `PRAGMA user_version` (`DB_VERSION` in database.ts).
 
 DB is saved to disk via `saveDb()` which calls `db.export()` → `fs.writeFileSync`. Saved after every
 batch during tag reading, after storeFiles, after runIncrementalScan, after clearDatabase, and once at startup.
 
 Cover art is NOT stored in the DB. It is read on-the-fly by `db:getCoverArt` — first from embedded
-pictures via `music-metadata`, then falling back to the first filename matching
-`^(folder|cover|front)\.(jpg|jpeg|png)$` next to the audio file (JPEG/PNG identified by magic bytes).
+pictures via `music-metadata`, then a track-named image (e.g. `song.mp3` → `song.jpg`), then falling
+back to the first folder-front filename matching `^(folder|cover|front)\.(jpg|jpeg|png|webp|gif)$`
+next to the audio file (extension list from `COVER_IMAGE_EXTENSIONS`; image type identified by
+magic bytes).
 DLNA rows are the exception: their `track_art_url` column holds every `upnp:albumArtURI`
 the item announced (newline-separated; servers list thumbnail/full-size variants
 unlabelled). On demand all candidates are fetched over HTTP in parallel and the largest
@@ -278,7 +240,7 @@ write).
 
 ```json
 {
-  "theme": "light" | "dark",
+  "design": "folder name of a discovered design (built-in or custom)",
   "language": "en-us" | "de-de" | "fr-fr" | "es-es",
   "folders": [{ "caption": "Music", "path": "/home/Music/..." }, ...],
   "dlna-servers": [{ "name": "My NAS", "control-url": "http://nas:8200/ctl/CDS", "description-url": "http://nas:8200/desc/device.xml", "icon-url": "data:image/png;base64,...", "enabled": true }, ...],
@@ -302,6 +264,10 @@ write).
   "search-tag-columns": { "search-tag-title": true, ... },
   "search-urls": ["https://www.discogs.com/search?...&title=${title}&artist=${artist}", ...],
   "browser": "firefox",
+  "external-player": "vlc",
+  "min-autoplay-rating": null | 0.5 | 1 | 1.5 | 2 | 2.5 | 3 | 3.5 | 4 | 4.5 | 5,
+  "sort-manual": false,
+  "playback-bar-position": "top" | "bottom",
   "selected-group-id": "grp-allfiles",
   "group-items": [{ "kind": "album", "value": "..." }, ...],
   "list-scroll-top": 0,
@@ -322,9 +288,15 @@ write).
 | `settings:saveSync`                | sync      | Write musicpenguin-settings.json synchronously
 | `dialog:pickFolder`                | invoke    | Native directory picker, returns `{ path }` or `null` on cancel
 | `dialog:showMessageBox`            | invoke    | Native message box, returns the index of the clicked button
+| `designs:list`                     | invoke    | Runtime design discovery — list of built-in and custom design folders
+| `window:setNowPlayingHeight`       | send      | Set the now-playing bar height (clamped, enforces window minimum size)
 | `fs:scanFolder`                    | invoke    | Recursive walk of a directory, returns `ScannedFileInfo[]`
 | `fs:listSubdirs`                   | invoke    | List immediate subdirectories of a path (skips dotfiles)
 | `fs:readFile`                      | invoke    | Read a file's full contents as `Uint8Array` if its size is ≤ 20 MB, else `null`
+| `playlist:save`                    | invoke    | Save-as dialog → write current playlist paths as `.m3u8`; returns `{ canceled, path }`, remembers folder/file
+| `playlist:load`                    | invoke    | Open dialog → read a `.m3u8`; returns `{ canceled, paths, filePath }`, remembers folder/file
+| `playlist:saveStateFile`           | invoke    | Persist the current playlist to `~/.config/musicpenguin/musicpenguin-playlist.m3u8` (best-effort)
+| `playlist:loadStateFile`           | invoke    | Read the persisted playlist state file, returns paths (empty when absent/corrupt)
 | `db:loadFiles`                     | invoke    | SELECT rows from `files` (tag + playback columns, omits `tags_scanned_at` and `tags_error`)
 | `db:storeFiles`                    | invoke    | INSERT OR IGNORE file paths (in a transaction)
 | `db:runIncrementalScan`            | invoke    | Stop tag reader, INSERT OR IGNORE files, re-scan tags, DELETE missing files, return `{ added, removed, total, errors }`. `removed` is computed as `countBefore - countAfter` (accurate for all deletions). Optional `allowedPaths` parameter prunes non-DLNA entries whose paths don't reside under any of the given prefixes.
@@ -337,9 +309,11 @@ write).
 | `db:stopTagRead`                   | invoke    | Stop the tag reader and wait for it to finish
 | `db:prioritizeFiles`               | invoke    | Prepend paths to the queue (only unscanned ones pass filter)
 | `db:rescanFiles`                   | invoke    | Re-queue files for tag re-reading (clears tags_scanned_at, re-prioritizes); http(s) stream URLs are ignored; `onlyIfModified` restricts the re-read to files whose mtime moved past their last scan
+| `db:scanSpecificFiles`             | invoke    | Tag-read only the given file list (e.g. right-click "Rescan Tags"); runs the ffprobe duration fixup pass afterwards
 | `db:getCoverArt`                   | invoke    | Local files: read cover from embedded metadata or folder image → data URL. Optional `maxSize` param resizes via `nativeImage` before returning. DLNA rows (http(s) path): GET the stored `track_art_url` from the server → data URL
 | `db:getCoverArtGroups`             | invoke    | Track's cover art in 3 disjunct groups (front / rearCovers / extraImages) → data URLs; DLNA rows return the fetched art as `front` only
 | `db:getProblematicFiles`           | invoke    | List files with `tags_error = 1`, write to `/tmp/musicpenguin_problematic_files.txt`, attempt to open in text editor (xdg-open → code → codium → desktop-specific fallback: kate on KDE, gedit on GNOME)
+| `db:getProblematicFileCount`       | invoke    | Return the count of files with `tags_error = 1`
 | `db:clearDatabase`                 | invoke    | Stop tag reader, DELETE all rows, save DB, then emit `library:changed` so the renderer reloads the empty library
 | `db:deleteFiles`                   | invoke    | DELETE rows for given paths from the database
 | `db:deleteFilesFromDisk`           | invoke    | DELETE rows for given paths and also remove the files from disk
@@ -427,6 +401,19 @@ from previously removed folders/servers.
 Main process entry point (bundled to `dist/main-bundle.js`). Creates BrowserWindow with
 context-isolated preload, registers all `ipcMain.handle` handlers (settings, db, dialog,
 cover art, shell), and manages window state persistence (position/size/maximized per display).
+The window's minimum size is bound to the now-playing bar: the renderer reports the bar's
+measured height on startup and after every design switch (`window:setNowPlayingHeight`, via
+`ipcMain.on`), and the main process enforces it on the BrowserWindow (the OS root window).
+Because some Linux compositors ignore WM min-size hints and suppress resize events during
+interactive drags, enforcement is three-fold and applied directly to the root window:
+`setMinimumSize` (WM hint), a `setSize` clamp on every `resize`/`restore`/`unmaximize`, and a
+30 ms background poll (the "enforcement burst") that snaps the window bounds back up the moment
+they fall below `barHeight + frame` (frame = outer bounds − content bounds) and stops as soon as
+the window is back at/above the limit. A modest minimum width (240px)
+acts as an absolute floor too. The poll timer is `unref()`'d (it never keeps the process alive)
+and is explicitly cleared on quit (`stopEnforcementBurst()` in `before-quit`), so the resize
+watchdog can never hold up app shutdown — e.g. when the user closes the window via the top-right
+X button.
 
 ### `src/main/database.ts`
 
@@ -544,10 +531,34 @@ against the stream URL, max 8 in parallel) and picks the largest image by
 pixel dimensions — so theater mode always gets the full-size variant. The IPC
 handlers route http(s) paths there instead of the local-file logic.
 
-### `src/main/kde-theme.ts`
+### `src/main/desktop.ts`
 
-`detectInitialTheme(settingsPath)` — precedence: saved theme → KDE color scheme (parses
-`kdeglobals` for `ColorScheme` name or `BackgroundNormal`/`ForegroundNormal` luminance) → dark.
+`detectInitialDesign(settingsPath, knownDesignIds)` — initial design precedence:
+- a saved design setting (any id discovered at runtime — built-in or custom), i.e. "unless the user decided
+  otherwise"; a saved id that is **not** found at runtime is ignored and the flow continues exactly as on first run;
+- default by desktop color scheme: a dark desktop scheme maps to the **Dark Gray** design, a light desktop
+  scheme to the **White** design
+- otherwise the default is `dark_gray`.
+
+The saved setting is read once here; the desktop scheme is then provided by registered provider modules, each
+guarding on its own environment and returning `null` when not applicable:
+
+- `src/main/desktop-kde.ts` — `detectKdeDesktopScheme()` for KDE/Plasma: guards on `XDG_CURRENT_DESKTOP` containing
+  "KDE", then parses `kdeglobals` / `kdedefaults/kdeglobals`: a `ColorScheme` name that says dark/light, else the
+  last resort — `BackgroundNormal`/`ForegroundNormal` luminance (brighter text than background → dark mode).
+- `src/main/desktop-gnome.ts` — `detectGnomeDesktopScheme()` for GNOME (incl. Ubuntu's GNOME shell / Unity): guards on
+  `XDG_CURRENT_DESKTOP` containing "GNOME"/"Unity", then queries user settings via
+  `gsettings get org.gnome.desktop.interface color-scheme` (GNOME 42+ `prefer-dark`/`prefer-light`), falling back to
+  the `gtk-theme` key and finally to `gtk-theme-name` in `~/.config/gtk-{3.0,4.0}/settings.ini`. A theme name that
+  explicitly says dark/light determines the scheme; the last resort probes the configured default text (foreground)
+  and background colors — `gtk-color-scheme` `fg_color`/`bg_color` from the user's or the theme's settings.ini,
+  else `@define-color theme_fg_color`/`theme_bg_color` from the theme's gtk.css — and compares their brightness
+  (brighter text than background → dark mode).
+
+`src/main/color.ts` provides the shared WCAG relative-luminance helpers (`luminanceRgb`, `luminanceHex`) used by the
+brightness comparison. Both providers return only an explicit determination; when the user's choice cannot be
+determined, the provider returns `null` and the dispatcher falls back to the **Dark Gray** default design — a light
+desktop scheme is only used (White design) when the user actually chose a light scheme.
 
 ### `src/main/types.ts`
 
@@ -558,6 +569,13 @@ Shared TypeScript types: `SqlJsDatabase`, `SqlJsStatement`, `SqlJsStatic`, `Scan
 
 Ambient declaration for `sql.js` (which ships no types): declares its default export as
 `() => Promise<SqlJsStatic>`, enabling a plain top-level `import initSqlJs from "sql.js"`.
+
+### `src/main/dbus-native.d.ts`
+
+Ambient declaration for `dbus-native` (which ships no types): declares its named exports
+(`sessionBus`, `defineInterface`, `Variant`) plus the `DbusBus` / `DbusConnection` / `DbusMessage`
+and `InterfaceDefinition` / `InterfaceProperty` / `InterfaceMethod` types, so `mpris.ts` can use
+plain top-level imports under the strict config instead of inline `require()` + `// @ts-nocheck`.
 
 ### `src/main/paths.ts`
 
@@ -599,7 +617,11 @@ messages.
 
 `walkDirectory()` — recursive file scan matching `MEDIA_FILE_EXTENSIONS`. `withTimeout()` —
 Promise race with timeout. `ensureDir()`. `commandExists()` — checks `which`. `jsonStringify()`
-— JSON.stringify with 2-space indent and Unicode unescaping.
+— JSON.stringify with 2-space indent and Unicode unescaping. DNS alias helpers used by DLNA:
+`dnsNameForIp(ip)` — reverse lookup (dns.reverse + dns.lookupService) with forward verification,
+shortest verified name wins (`expandFritzBoxCandidates` adds `.fritz.box`-stripped variants);
+`ipLiteralOf()`, `withAliasedHost(url, ip, dnsName)` — swap a stored IP-literal host for the
+readable DNS name.
 
 ### `src/common/config.ts`
 
@@ -608,14 +630,32 @@ Central constants: `TAG_BATCH_SIZE` (20), `NUM_TAG_READER_THREADS` (4), `MEDIA_F
 including `.mp2` which Chromium can decode for MPEG-1 Layer II but not MPEG Layer II),
 `DEFAULT_SEARCH_URLS` (5 search URL templates: Discogs, Amazon, Google, MusicBrainz, DNB),
 `MIN_EXTRA_IMAGE_SIZE` (100, minimum size for theater mode extra images),
-and `THEATER_FADE_TOTAL_MS` (6000, combined theater mode fade-out + fade-in time; half per
+and `THEATER_FADE_TOTAL_MS` (2000, combined theater mode fade-out + fade-in time; half per
 direction).
 
 ### `src/renderer/debug-log.ts`
 
 Debug logging for the renderer process. `initDebugLog()` reads the `debug-log` setting.
-`debugLog(...args)` writes timestamped lines via IPC to `~/.config/musicpenguin.log` when
-enabled, or no-ops when disabled. Used for media key event tracing.
+`debugLog(...args)` sends timestamped lines to the main process over the `debug:log` IPC channel,
+which appends them to `~/.config/musicpenguin.log` (the renderer itself does no file I/O) when
+enabled, or no-ops when disabled. `isDebugLogEnabled(): boolean` exposes the current toggle state.
+Used for media key event tracing.
+
+### `src/renderer/external-player.ts`
+
+Configurable external player used as a fallback for formats Chromium cannot decode
+(e.g. MPEG Layer II) or via the context-menu "Play in …" action. `getExternalPlayer()` returns
+the persisted command (default `vlc`); `getExternalPlayerDisplayName()` derives the short label
+(last path segment without extension). `initExternalPlayer()` loads the `external-player`
+setting; `checkExternalPlayerCommand(name)` tests executability via the `shell:checkCommand` IPC;
+`saveExternalPlayer(name)` persists the kebab-case `external-player` key.
+
+### `src/renderer/min-autoplay-rating.ts`
+
+`getMinAutoplayRating()` / `initMinAutoplayRating()` / `saveMinAutoplayRating()` manage the
+`min-autoplay-rating` setting (0.5 steps, 0.5..5; absent = no limit). `passesMinAutoplayRating(rating)`
+returns whether a track clears the threshold for AUTO-advance: unrated (0) and hated (−1) tracks can
+never reach even the lowest 0.5 limit and are always skipped; manual starts are never filtered.
 
 ### `src/renderer/index.ts`
 
@@ -628,8 +668,14 @@ and `library:changed` handler (full track list reload after scan completes). Int
 and main-list track advancement via `onTrackEnd` and theater mode nav callbacks. Main list
 navigation (`mainListNext`/`mainListPrev`) respects global shuffle/repeat modes — shuffle
 picks random tracks from the unplayed set, repeat-all wraps at list boundaries, repeat-one
-replays on auto-advance. Uses `requestAnimationFrame` to let the browser paint the shell
-before loading DB data. **Standard sorting modes** live in `src/sorting.ts`: `SORTING_MODES` is a named registry of reusable
+replays on auto-advance only (a MANUAL next/prev always advances — repeat never governs the
+user pressing next). Uses `requestAnimationFrame` to let the browser paint the shell
+before loading DB data. Prev/next (MPRIS, buttons, keys) start from the last **established selection** when nothing
+is playing: a `navFromList` flag remembers whether the user last selected in the main list or
+the playlist, and a manual step falls back to `selectedTrackPath` (main list) or the last-clicked
+playlist row rather than a stale "currently playing" track — auto-advance always continues from
+the just-finished track, and an actively-playing main-list track always uses the main list.
+**Standard sorting modes** live in `src/sorting.ts`: `SORTING_MODES` is a named registry of reusable
 library sorts (`{ id, name, sort }`), with the canonical **"Artist, Album, TrackNo"** mode (`id`
 `artist-album-trackno`, exported as `ARTIST_ALBUM_TRACKNO`) as its first element (plus a `filename`
 mode, `FILENAME`). `applySortingMode(id, arr)` looks up a mode by id and applies its `sort` to a
@@ -709,6 +755,9 @@ local files at all, Play
 in external player, Copy Path, Rescan Tags, Goto Album, Goto Folder, Goto Artist, Goto Composer, Sort by column). Click → `onSelect` +
 priority paths. Double-click → `onDblClick` play.
 `formatTime()` converts seconds string to `MM:SS`/`HH:MM:SS`.
+The `#` column wraps its number in a `span.track-no-badge` (`setTrackNoCell()`) so skins can draw a
+square box around just the track number; skins that don't restyle it inherit the unboxed inline text,
+so the badge is visually transparent there.
 
 **Goto sorting**: Context-menu Goto actions apply a context-appropriate sort order without
 updating the global sort state or column header sort indicators. Goto Album sorts by track number
@@ -747,9 +796,18 @@ called on mouseup (never on mousemove).
 
 Display form: path (editable — renames/moves file on disk via `db:moveFile`), title, artist, album,
 album artist, track/disc/year/genre/composer/conductor/rating/comment. Cover art loaded lazily
-via `getCoverArt()`; tracks without art show a ♫ placeholder instead. Clicking or double-clicking
+via `getCoverArt()`; tracks without art show a music-icon placeholder instead. Clicking or double-clicking
 the cover area — art or placeholder alike — always opens theater mode for the shown track
 (no track selected → click is ignored).
+
+Detail-form layout (see `index.html`): the left half carries four small metadata fields
+Disc No / Track No / Year / BPM, grouped in a `.detail-row-field-group` flex row, plus a
+separate rating label (`label.field-rating`). Default (`musicpenguin_base.css`) sizing keeps
+all five labels `flex: 1` and reserves `min-width: 100px` for the rating label
+(`label:has(#field-rating)`), guaranteeing the stars always fit. The field-group wrapper is
+purely structural sugar: a skin that wants a wider rating can override just two flex factors
+(`.detail-row-field-group { flex ... }` and `#detail-form .field-rating { flex: 0 0 <px> }`)
+without touching four sibling elements.
 
 ### `src/renderer/now-playing.ts`
 
@@ -761,15 +819,88 @@ source have been played. Saves `now-playing`/`volume`/`muted` to settings on `be
 shuffle/repeat are persisted via `saveSettings` on toggle. Restores position on startup.
 Double-click track info → theater mode.
 
-**Transport-control emoji use explicit variation selectors**: the previous/next track glyphs
-(`U+23EE` ⏮ / `U+23ED` ⏭) have `Emoji_Presentation = No`, so without an explicit `U+FE0F`
-variation selector they default to monochrome text presentation — the bare black triangles
-instead of Noto Color Emoji's orange-button colored version. This default is what Chromium
-renders on a plain Ubuntu 24 / openSUSE Leap 16 install, while the development machine
-happened to fall back to the colored form. Appending `U+FE0F` (`⏮️` / `⏭️`) forces emoji
-presentation and makes prev/next render colorfully everywhere — matching the play button
-`▶️` which already carries `U+FE0F`. Used consistently in both `index.html` (now-playing
-bar) and `theatermode.ts` (theater overlay prev/next).
+**All UI toggle/transport icons are stroke-based tabler outline SVGs**
+ single-sourced from `src/renderer/icons/`; esbuild bundles them as
+ raw text (`--loader:.svg=text`) and `src/renderer/icons.ts` exports each file
+ as an `ICON_*` string — nothing is hardcoded into `index.html`. One-time
+ `injectStaticIcons()` (first call in `init()`) fills every static slot
+ (prev/next/play/pause, repeat/shuffle, volume/mute, folders, scan, settings,
+ search, regex, randomize, clear/save/load playlist, warning, music-note
+ placeholder) via `innerHTML`; state-driven slots (play/pause, volume/mute,
+ repeat modes, shuffle, playlist play, the list "now playing" speaker
+ indicator, cover placeholders, folder open/close) are then overwritten by
+ their engines as soon as the state is known. For raw-file preview (opening
+  `index.html` directly in a browser, before startup runs), each slot carries a
+  monochrome Unicode placeholder glyph that `injectStaticIcons()` overwrites. All of them use
+ `stroke: currentColor`, so icons inside buttons take the button's design
+ `color` (the rating stars are the only remaining glyphs — deliberately left
+alone). Sizing AND stroke style are centralized in ONE base rule: the
+  tabler SVGs carry fixed 24×24 attributes (plus `stroke-linecap/linejoin:
+  round`) and the shared base rule `.icon { width: 1.15em; height:
+  1.15em; stroke-linecap: round; stroke-linejoin: round; ... }` scales every
+  one relative to its surrounding font size (the `.delete-dialog-warning
+  svg` rule overrides it to 1em). The `stroke-*` values inherit to all paths,
+  so a design skin restyles every icon in one place by overriding `.icon` (e.g. a skin can set
+  `stroke-linecap: square; stroke-linejoin: miter`).
+  Icons are full SVG markup, so TS injects them via `innerHTML`
+   (never `textContent`). The play/pause buttons (`#play-btn`,
+   `#playlist-play-btn`, `#theater-play-btn`) embed **both** icons at once, wrapped as
+   `<span class="icon-play">` + `<span class="icon-pause">` (via the `ICON_PLAY_PAUSE`
+   constant), and instead of swapping `innerHTML` the code merely toggles a `playing`
+   class on the button. The base stylesheet picks which icon shows: `.icon-pause` hidden
+   by default and shown only under `button.playing`; a skin can override this so the same
+   icon represents both states (e.g. always show the play triangle) or add per-state
+   styling (e.g. a "live LED" glow on the play triangle while playing).
+   Sort-direction arrows are SVGs too: the context-menu ascending/descending buttons
+   (`.playlist-sort-btn` in the list and playlist menus) and the column-header
+   `.sort-badge` use `ICON_CARET_UP`/`ICON_CARET_DOWN` instead of Unicode triangles,
+   so skins can glow them like any other icon. Base CSS squeezes them to half their
+   natural width (`.sort-badge svg, .playlist-sort-btn svg { width: 1.2em; height: 2.4em }`).
+   Each transport button uses its palette family consistently:
+
+  the now-playing bar `#prev-btn`/`#play-btn`/`#next-btn` use the `--primary*`
+  family, and the theater overlay `#theater-prev-btn`/`#theater-play-btn`/`#theater-next-btn`
+  use their own `--theater-btn-*` variables, which the base `:root` initializes **from** the
+  `--primary*` family (`--theater-btn-bg: var(--primary)`, `--theater-btn-hover`,
+  `--theater-btn-text`, `--theater-btn-disabled`, `--theater-btn-text-disabled`), so theater
+  controls match the main transport bar by default but a skin can later diverge them. Each skin
+  redeclares these theater vars from its own primary values (see the consistency note below).
+  Repeat/shuffle are toggles: off = dimmed `--accent-disabled` pill, on = `--accent` pill with
+  the `--button-text-accent` glyph. The same enabled (`--accent`/`--button-text-accent`) vs dimmed
+  (`--accent-disabled` bg + `--button-text-accent-disabled` glyph) treatment applies to the playlist
+ action buttons (`.enabled`), the sidebar `#groups-buttons` buttons, and the search bar's
+ `#regex-btn` (`.active` toggle), `#search-btn` (`:disabled`) and `#load-playlist-btn`.
+ Hover adds a glow but
+ only when truly clickable: repeat/shuffle/regex always (both states
+ toggle), playlist/search/load only when enabled. The hover glow is unified the same way as the
+ transport buttons — `text-shadow: 0 0 10px var(--*)` with a `drop-shadow(0 0 4px var(--*))` and no
+ background/border change on hover — and each button never mixes colour families: buttons use
+  either `--accent*` (groups, repeat/shuffle/regex, playlist/search/load) or `--primary*`
+  (transport `#prev/#play/#next`, theater `#theater-prev/#theater-play/#theater-next`,
+  `#playlist-play-btn`), consistently for fill, text and glow.
+  Each button family still owns its own styling rules for future per-button customization.
+  The now-playing progress/knob and the volume slider are primary-level controls too: base
+  defines `--progress-fill: var(--primary)` (with `--progress-track` for the track), so they
+  follow the `--primary*` family rather than the accent. Their counterparts in the theater
+  overlay keep their own dedicated `#theater-*` selectors but reuse the same base variables
+  (`--progress-fill`/`--progress-track`), so theater's progress, knob and volume slider look
+  identical to the main bar in every skin.
+  New palette vars: `--accent-disabled`,
+  `--button-text-accent-disabled` — a skin must override these too (e.g. the blue skin dims to a
+ navy `#1e3a5f`), otherwise the disabled pill falls back to the dark base colour. The
+ playlist play button `#playlist-play-btn` is the exception: it uses the `--primary*`
+  family (`--primary-disabled` when empty) rather than `--accent`.
+  The `tropical_sorbet` skin overrides all four disabled vars to a subdued melon
+  (`#e7b6c1` bg + `#9a6b76` text) so disabled buttons match the `--watermelon` accent
+  instead of falling back to the brownish base colours.
+
+  The `tropical_sorbet` skin also overrides the non-primary `.btn-normal` (e.g. "+ Add
+  Folder") from the peachy base to a light blue (`#dcecfb` bg + `#2c5a7a` text, hover
+  `#c2e1f7`) for a cooler secondary-button look, and sets `--accent`/`--accent-hover` to
+  light blue (`#5aa6d6` / `#3f8fc4`) so accent buttons (`.btn-icon.active`, search/playlist
+  buttons, toggles) match. Its primary family is the melon `--tropical-sorbet-gradient`
+  (`--primary`/`--primary-hover`), so the transport buttons, the playlist play button and the
+  theater buttons (via the `--theater-btn-*` vars) all follow the watermelon→mango look.
 
 Only "significant" plays increment the play count (`MIN_PLAY_SECONDS` = 20): a play counts
 when at least 20 continuously played seconds were accumulated via `timeupdate` (seeks and
@@ -809,13 +940,16 @@ the front cover; sub-100×100 px images are skipped. Closing is via the close bu
 Escape, or clicking anywhere outside an interactive control (buttons, sliders, rating
 stars and the cover are exempt). Clicks within a short grace window after opening are
 ignored, so the second click of a double-click cannot instantly re-close the overlay.
+The `#theater-mode` stage sets `user-select: none` so track text and cover art cannot
+be text-selected, which keeps the "click anywhere to close" and progress-slider
+semantics clean.
 The fading only runs when it FITS — otherwise the transition is sudden and immediate:
 the fade-out is skipped when the current track's remaining time was never longer than the
 per-direction fade duration (track shorter than that, or theater mode opened too
 late), and the fade-in is skipped when the next track is shorter than the fade duration.
 If either side skips, no black hold and no animation happens at all. The combined
 fade-out + fade-in time is configured via `THEATER_FADE_TOTAL_MS` in `src/common/config.ts`;
-half of it is used per direction (also applied to the `--tm-transition-duration` CSS
+half of it is used per direction (also applied to the `--theater-transition-duration` CSS
 variable at startup).
 
 ### `src/renderer/file-probe.ts`
@@ -852,6 +986,14 @@ now-playing bar and theater mode.
 
 Overlay dialog with a dark mode toggle and close button. The folders dialog is opened
 independently by the Folders button in the groups panel (handled by `src/folders-dialog.ts`).
+While an overlay is open, its launcher button (`#settings-btn` / `#folders-btn`) carries an
+ `active` class that is removed again on close, so a design skin can light the launcher up
+ for as long as the dialog is visible.
+ Every standard popup dialog (settings, folders, about) shares the same base `.dialog`
+ container class, the same `.dialog-close` button class on its header "×", and the same
+ `.dialog-ok` button class (with the shared `btn btn-primary` look) in its footer, so all
+ dialogs render identically; only their ids and optional size modifiers
+ (`.folders-dialog`/`.about-dialog`) differ.
 
 Also contains a **Danger Zone** section: a red "Empty MusicPenguin Library" button (left-aligned, styled
 like the delete-confirmation red button) that opens a confirmation overlay asking "Are you
@@ -860,13 +1002,53 @@ sure to empty the MusicPenguin library?...". Confirming calls `window.electronAP
 `library:changed` so the renderer reloads the empty library, then resets the Now Playing
 widget (`resetNowPlayingWidget` in `src/now-playing.ts`) and clears the details panel
 (`showDetails(null)`). It also fires the `setOnDatabaseCleared` callback (registered by
-`src/index.ts`), which drops every user-built `album`/`artist`/`composer`/`folder` group
+`src/index.ts`), which empties the playlist (`clearPlaylist` in `src/playlist-panel.ts`: clears
+the entries, the current/selected state, re-renders, persists an empty playlist, resets the play
+button and notifies the state-change callbacks so the navigation buttons update), drops every
+user-built `album`/`artist`/`composer`/`folder` group
 section from the left panel (empties the arrays, persists empty `group-items`, and, if the
-current group was one of those sections, resets the selection to "All Tracks"), then closes
-the settings dialog.
+ current group was one of those sections, resets the selection to "All Tracks"), then closes
+ the settings dialog. In this confirmation the destructive action is the red
+ `delete-dialog-btn-danger` button, so **Cancel** is styled as the default/primary action via the
+ standard `btn btn-primary` classes (the same "OK" look as every other dialog), matching the
+ `.btn` helpers rather than the neutral `delete-dialog-btn`. Danger buttons (`#empty-db-btn` and
+ `.delete-dialog-btn-danger`) use the existing `--danger*` family (analogous to `--accent*`/`--primary*`):
+  a solid `--danger` fill with `--button-text-danger` glyph, kept as a slightly muted red so it doesn't
+ stand out too strongly, and on hover it uses the *same glow technique as the primary/accent
+ buttons* — only `text-shadow: 0 0 10px var(--danger)` + `drop-shadow(0 0 4px var(--danger))`,
+  with `background: var(--danger-hover)` (the fill brightens slightly on hover) plus the glow
+    effect (`text-shadow: 0 0 10px var(--danger)` + `drop-shadow(0 0 4px var(--danger))`).
+
+The external-player command field in Settings marks an invalid/empty value by adding the
+`invalid-command` class (see `markPlayerValidity` in `src/renderer/settings.ts`). Its
+background reuses the same `--danger` / `--button-text-danger` pair as the danger buttons
+(`.toggle-row input[type="text"].invalid-command` in the base CSS, mirrored in the custom
+skins), so the error highlight always matches the danger default background instead of a
+divergent hardcoded red.
+
+The confirmation's explanation text (`.delete-dialog-question`) and its neutral buttons
+(`.delete-dialog-btn`, always rendered on a light `--panel-bg`/`--input-bg` box) use the plain
+`--text` color — not `--button-text-accent` — so they stay readable even on light skins like
+"white" where `--button-text-accent` is white. Skins must not override these to a hardcoded
+light color.
+
+### `src/renderer/index.ts` — About dialog & icon license
+
+The About dialog (`#about-overlay`) is opened by clicking the app logo. Besides the version,
+the BlueSky/GitHub links (opened via `shell:openExternal`) and the iconset link, the iconset row
+also carries a **License** button (`#about-license-btn`, styled with the small `.internet-btn`
+class used by the detail-panel internet-search buttons, inline in `#about-iconset1`, laid out as a
+centered flex row so the button shares the icons URL's line). Clicking it opens a modal
+(`#license-overlay` with a `.license-overlay`/`.license-box`/`.license-text` layout in the base
+CSS) whose title is the localized `t("Icons License: $1", "tabler-icons")` (key present in every
+language dictionary) and that displays the
+bundled icon license **verbatim** — `iconLicense` is imported as raw text from
+`src/renderer/icons/LICENSE` (esbuild bundles it with the same `--loader:.md=text`
+mechanism used for the `--loader:.svg=text` icon files; the `*.md` ambient module is declared in
+`src/renderer/svg-assets.d.ts`). The text is never translated and the source file is not shipped
+or read at runtime. The modal closes via its header "×", Escape, or clicking the backdrop.
 
 ### `src/renderer/folders-dialog.ts`
-
 Separate overlay for managing scanned folders: add/remove folders, expand/collapse subdirectories,
 toggle per-folder checkboxes, and delete selected folders. Opened by the Folders button in the
 groups panel. Also holds the DLNA server list: on open it runs SSDP discovery
@@ -880,6 +1062,28 @@ and `dlnaServers` overrides) if any configuration changed; its summary is writte
 `onScanComplete()` (list reload) so it is deterministically the status bar's final state.
 Scanning always runs even when no folders or DLNA servers are enabled — this ensures
 DB pruning still sweeps stale entries from previously removed folders/servers.
+The `.folder-item .btn-expand` expand/collapse buttons reuse the shared primary styling
+(`--accent` bg + `--button-text-accent` glyph, `--accent-disabled` when disabled), matching the
+main-app buttons. On hover they use the *same unified glow as every other accent button* —
+only `text-shadow: 0 0 10px var(--accent)` + `drop-shadow(0 0 4px var(--accent))`, with no
+background/border change (previously the hover fill switched to `--accent-hover`, which made
+these buttons glow a different, darker/orangish shade than the main UI). The folder SVG icon
+inherits `currentColor` so its stroke follows the button foreground. The dialog uses the
+`.folders-dialog` class to fix its size (`width`/`height` of `min(960px,90vw)`/`min(720px,90vh)`,
+with matching `min-width`/`min-height`) so expanding/collapsing folders or showing the DLNA
+section never resize or move the dialog; only the user's manual `resize: both` grip changes its
+size, and the internal `#folder-list` / `#dlna-server-list` lists scroll (`overflow-y: auto`)
+within that fixed box. A folder with no
+subfolders (known-empty `children === []`) gets a disabled button — assigned at build,
+after a failed expansion, and for newly added empty folders. The folder tree (`#folder-list`)
+and DLNA server list (`#dlna-server-list`) scroll areas use the darker `--panel-bg` background
+(same as the details UI panel), with a `--border` and radius, so they read as inset panels.
+
+**Panel background variables**: the three main UI sub-surfaces have dedicated CSS vars so skins can
+style each independently — `--groups-panel-bg` (`#groups-panel`, was `--panel-bg`),
+`--details-panel-bg` (`#detail-panel`, was `--bg`), and `--search-panel-bg` (`#search-panel`, was
+ `--playlist-bg`). Each is initialized to its old value per skin (no visual change) so designs that
+ override panels directly remain unaffected.
 
 ### `src/renderer/scanner.ts`
 
@@ -906,19 +1110,25 @@ library live (re-render throttled to ~400 ms) while enumeration is still running
 
 ### `src/renderer/split-pane.ts`
 
-Draggable dividers for groups width, list height, playlist width. Cross-handle knobs adjust
-both axes. State persisted to settings.
+Draggable dividers for groups width, list height, playlist width. Invisible cross-handle drag
+areas (no visible knob) adjust both axes. State persisted to settings.
 
 ### `src/renderer/playlist-panel.ts`
 
-Playlist with drag-drop reorder, randomize (Fisher-Yates), clear, multi-select, keyboard delete,
+Playlist with drag-drop reorder, randomize (Fisher-Yates), clear (`clearPlaylist`, also invoked
+when the library database is emptied — see the settings "Empty Database" section), multi-select, keyboard delete,
 auto-advance via `onTrackEnd`. Entries rebuilt from DB paths on load. Shuffle and repeat modes
 are global (managed by `src/now-playing.ts`); playlist reads them via `getShuffle()`/`getRepeat()`
 and subscribes to `onPlayModeChange` for re-rendering.
+Prev/next navigation (`prevPlaylist`/`advancePlaylist`/`canPlaylistPrev`/`canPlaylistNext`) uses
+a `navBaseIndex()`: the currently playing row when a playlist is active, otherwise the last
+row the user clicked in the playlist (so a MANUAL prev/next works on a merely-selected entry
+with nothing playing). `hasPlaylistNavBase()` lets `src/index.ts` decide whether idle navigation
+should target the playlist.
 Whenever new tracks are ADDED to the playlist while a MAIN-LIST track is currently
 playing and that track is part of the (resulting) playlist, `adoptPlayingTrackIntoPlaylist()`
 adopts it as the playlist's current entry: the playlist play/pause button shows the pause
-state, the 🔊 indicator anchors to that row, and prev/next (now-playing bar and MPRIS) operate
+state, the speaker indicator anchors to that row, and prev/next (now-playing bar and MPRIS) operate
 on the playlist from then on — including auto-advance on track end. This covers every add path:
 internal drags from the main list or groups panel (viewport and
 item-level drop handlers; pure internal reorders do not adopt). No adoption happens when playback
@@ -968,14 +1178,17 @@ to settings.
 ## Key Behaviors
 
 * **Startup**: No folder scanning and no tag reading. `requestAnimationFrame` lets the browser paint the shell before
-  loading DB data. Reads SQLite and populates the main track list. Sort state, column widths,
+  loading DB data. A full-screen black `#startup-overlay` div covers `<body>` from the first paint to hide the
+  unfinalized layout and prevent startup flicker; it is removed from the DOM after tracks load, the list renders,
+  and the scroll position is restored (end of `init()` in `src/renderer/index.ts`).
+  Reads SQLite and populates the main track list. Sort state, column widths,
   and splitter state are restored from settings before first render. Loads persisted now-playing
   track and restores playback position. Tag reading only starts when the user clicks the Scan
   button or closes the folders dialog after making changes.
 * **Double-click to play**: Double-clicking any row in the list view immediately sets it as the
   current track and starts playback via `playTrack()`.
 * **Theater mode**: Clicking or double-clicking the cover art in the detail panel (with or
-  without cover art — the ♫ placeholder is clickable too) or double-clicking the track info in
+  without cover art — the music-icon placeholder is clickable too) or double-clicking the track info in
   the now-playing bar opens a fullscreen overlay with cover art, playback controls, and
   prev/next navigation.
 * **Scan**: Full scan happens via the centralised `runFullScan()` in `src/scanner.ts` when the
@@ -999,8 +1212,9 @@ to settings.
   from their stream URL (`http(s)://` paths bypass the `file://` conversion). Unchecking all
   servers removes all imported DLNA tracks on the next full scan.
 * **Cover art**: Read on-the-fly via `db:getCoverArt` — tries embedded picture first (via
-  `music-metadata`), then searches the file's directory for the first filename matching
-  `^(folder|cover|front)\.(jpg|jpeg|png)$`. JPEG/PNG are identified by magic bytes. Never
+  `music-metadata`), then a track-named image, then searches the file's directory for the first
+  folder-front filename matching `^(folder|cover|front)\.(jpg|jpeg|png|webp|gif)$`
+  (`COVER_IMAGE_EXTENSIONS`). JPEG/PNG are identified by magic bytes. Never
   stored in DB. Returns a data URL.
 * **Tag reading is idempotent**: Once `tags_scanned_at` is set (even on error), the file is never
   re-read. The priority queue filters against `tags_scanned_at IS NULL` before adding work.
@@ -1054,17 +1268,84 @@ write to allow toggling without restart.
 The TypeScript configs (`tsconfig.main.json` and `tsconfig.renderer.json`) enforce `strict: true`,
 `noUncheckedIndexedAccess`, `noImplicitReturns`, `noFallthroughCasesInSwitch`.
 
-## Theme Detection
+## Design Detection
 
-On startup, the initial theme is detected with this precedence:
+On startup, the available designs are discovered at runtime (`src/main/designs.ts`): every folder containing a
+`musicpenguin_design.css` under `<renderer>/designs` (built-in, href relative to `index.html`) or under
+`~/.config/musicpenguin/designs` (custom, absolute href) counts as a design whose **folder name is its id**. A custom
+design sharing a built-in folder name shadows the built-in. The initial design is picked with this precedence:
 
-1. Saved `theme` in musicpenguin-settings.json
-2. KDE color scheme detection (parses `~/.config/kdeglobals` and `kdedefaults/kdeglobals` for
-   `ColorScheme` name or `BackgroundNormal`/`ForegroundNormal` colors using relative luminance)
-3. Default: dark
+1. Saved `design` in musicpenguin-settings.json — validated against the discovered ids. A saved id that is **not
+   found** is ignored and detection continues exactly as on first run.
+2. Default by desktop color scheme: only an explicitly determined scheme maps to a design — dark desktop
+   scheme → **Dark Gray** design, light desktop scheme → **White**. Detected per desktop: KDE parses
+   `~/.config/kdeglobals` / `kdedefaults/kdeglobals` (`ColorScheme` name or background/foreground luminance);
+   GNOME queries `gsettings` (`color-scheme` / `gtk-theme`) and falls back to `~/.config/gtk-{3.0,4.0}/settings.ini`,
+   probing the configured text/background colors for brightness as a last resort. When the user's choice cannot be
+   determined the step yields no scheme.
+3. Default: dark_gray
 
-The chosen theme is passed as `?theme=` query parameter when loading `src/renderer/index.html`, where an inline
-script applies `data-theme` before the page renders to avoid flash.
+The chosen design's **stylesheet href** (not the id) is base64-encoded and passed as `?design=` when loading
+`src/renderer/index.html` (base64 makes the href survive the URL query round-trip losslessly — folder names may
+contain spaces, `+`, `%`, `&` …);
+an inline script in the `<head>` decodes and sets `<link id="design-css" href="…">`
+defaulting to `designs/dark_gray/musicpenguin_design.css`, before the page renders to avoid flash. The loader is
+resilient: it only accepts `file:` stylesheets and, if the requested stylesheet fails to load (e.g. index.html is
+opened directly from the file system during development, or a custom design went missing), the link's `onerror`
+swaps it to the built-in dark gray design. `src/renderer/settings.ts` decodes the same way to keep the dropdown's
+default in sync with the active startup design. The renderer then
+re-applies the saved design only if it is still resolvable; otherwise it leaves the main process's choice untouched,
+so an unknown saved design falls back to the usual first-time-default design. All designs are loaded on top of a
+**shared base stylesheet**, `src/renderer/musicpenguin_base.css`, which is linked first in `src/renderer/index.html`
+(line 7) before the design stylesheet. The base is a copy of the built-in `dark_gray` UI spec, so a design only needs
+to override what it cares about. Built-in and custom designs are minimal **overlays**: each rule the design does not
+restyle falls back to the base, `:root` palettes override the base variables, and any rule whose selector and
+declaration body are byte-identical to a base rule can be dropped from the overlay (the custom design files in
+`package/custom_designs` are kept minimal this way). Switching designs at runtime just swaps the link's
+`href` (see `applyDesign`
+in `src/renderer/settings.ts`). User-initiated switches (settings dropdown) can later be cross-faded over e.g. 0.5s
+via the View Transitions API (`document.startViewTransition`);
+the duration and a `prefers-reduced-motion` fallback live in the designs as
+`::view-transition-*` rules. We currently have set this transition time to 0s, might change later again.
+
+Editable input boxes / text areas carry a convention shared by every skin (the base once dimmed
+`#detail-form.fields-readonly input/textarea` to `--text-muted`; that rule has been removed so the
+read-only state no longer alters the text). Each design highlights editable inputs
+(`#detail-form input/textarea`, `#field-rating`, `#search-input`, `.toggle-row select/input[type="text"]`)
+with a primary-colored border plus a soft outer glow, but **only while the field is focused**
+(the `:focus`/`:focus-within` glow shows only while the user is editing). Inactive read-only/disabled
+fields fall back to a plain `--input-border` with no glow and keep the exact same text color as an
+editable field. The custom skins mirror this convention in their own stylesheet — `tropical_sorbet`
+hardcodes its gradient's primary tones since `--primary` there is a gradient and cannot be used as a
+border color/glow color. (The `80s_stereo` easter-egg skin keeps a plain neutral border on its input
+wrappers with no focus glow at all.)
+
+**Theater info text pinning**: the four theater metadata elements (`#theater-title`, `#theater-artist`,
+`#theater-album-line`, `#theater-year`) always use the exact style from the base CSS — regardless of
+which design is active. Every `*_design.css` file carries an explicit copy of these four rules at its
+end, so no custom-design variable or selector can accidentally recolor or restyle them. The IDs remain
+in the DOM so a user-authored design *can* intentionally override them if desired.
+
+The settings dropdown (`#design-select`) is populated via the `designs:list` IPC (exposed as
+`window.electronAPI.listDesigns()`, see `src/preload/preload.js`) with the discovered folders grouped under the
+ non-localized headings **Built-In Designs** and **Custom Designs**. Folder names are polished for display: `_`
+ becomes a space and each word is capitalized. Design names are never
+ translated — the discovery list is re-queried every time the settings dialog is opened (`refreshDesigns()` in
+`src/renderer/settings.ts`), so designs added to or removed from `~/.config/musicpenguin/designs` (folders or
+symlinks, even broken ones, which are skipped) are reflected immediately. A custom design sharing a built-in folder name is
+offered in the dropdown instead of the built-in (single, non-ambiguous "Custom" entry) and wins on startup
+and at runtime; the persisted setting stays the bare folder name, never the path.
+
+The install packages do not ship custom designs as part of the app: on installation their post-install scripts
+(`package/deb/postinst`, rpm `%post`) copy the custom designs from `package/custom_designs` into
+`~/.config/musicpenguin/designs/` of the installing user (resolved via the sudo context or the first human account),
+skipping any folder that already exists. This gives a user a starting point for own designs.
+
+**No styling in TypeScript**: all visual styling (colors, sizes, cursors, etc.) lives exclusively in the design
+stylesheets. Renderer code only (a) toggles classes / hidden states, (b) feeds dynamic runtime data to CSS via custom
+properties (`--groups-w`, `--list-h`, `--playlist-w`, `--col-*`, `--slider-fill`, `--depth`, …) and (c) sets a handful
+of necessarily-runtime values (progress widths, scroll-thumb positions, context-menu coordinates, measured spacer
+heights, the blurred theater background's data-URL image).
 
 ## Language (i18n)
 

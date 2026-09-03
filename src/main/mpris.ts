@@ -1,11 +1,10 @@
-// @ts-nocheck
-const dbus = require("dbus-native");
-const { defineInterface } = dbus;
+import { defineInterface, sessionBus, Variant as DbusVariant } from "dbus-native";
+import type { DbusBus, InterfaceDefinition } from "dbus-native";
 
 const BUS_NAME = "org.mpris.MediaPlayer2.MusicPenguin";
 const OBJ_PATH = "/org/mpris/MediaPlayer2";
 
-const MprisRoot = defineInterface({
+const MprisRoot: InterfaceDefinition = defineInterface({
   name: "org.mpris.MediaPlayer2",
   properties: {
     Identity: { type: "s", access: "read", value: "MusicPenguin" },
@@ -24,7 +23,7 @@ const MprisRoot = defineInterface({
   },
 });
 
-const MprisPlayer = defineInterface({
+const MprisPlayer: InterfaceDefinition = defineInterface({
   name: "org.mpris.MediaPlayer2.Player",
   properties: {
     PlaybackStatus: { type: "s", access: "read", value: "Stopped" },
@@ -55,38 +54,56 @@ const MprisPlayer = defineInterface({
   },
 });
 
-let bus = null;
-let playerImpl = null;
-let playerEmit = null;
+let bus: DbusBus | null = null;
+let playerImpl: Record<string, unknown> | null = null;
+let playerEmit: InterfaceDefinition["emit"] | null = null;
 
-function parseDuration(str) {
+function parseDuration(str: string): number {
   if (!str) return 0;
   const parts = str.split(":").map(Number);
-  if (parts.length === 2) return Math.round((parts[0] * 60 + parts[1]) * 1000000);
-  if (parts.length === 3) return Math.round((parts[0] * 3600 + parts[1] * 60 + parts[2]) * 1000000);
+  if (parts.length === 2) {
+    const a = parts[0] ?? 0;
+    const b = parts[1] ?? 0;
+    return Math.round((a * 60 + b) * 1000000);
+  }
+  if (parts.length === 3) {
+    const h = parts[0] ?? 0;
+    const m = parts[1] ?? 0;
+    const s = parts[2] ?? 0;
+    return Math.round((h * 3600 + m * 60 + s) * 1000000);
+  }
   return 0;
 }
 
-function toMetadata(track) {
+interface MprisTrack {
+  title?: string;
+  artist?: string;
+  album?: string;
+  path?: string;
+  duration?: string;
+}
+
+function toMetadata(track: MprisTrack | null | undefined): Record<string, DbusVariant> {
   if (!track) return {};
-  const meta = {};
-  meta["mpris:trackid"] = new dbus.Variant("o", OBJ_PATH + "/TrackId");
-  if (track.title) meta["xesam:title"] = new dbus.Variant("s", track.title);
-  if (track.artist) meta["xesam:artist"] = new dbus.Variant("as", [track.artist]);
-  if (track.album) meta["xesam:album"] = new dbus.Variant("s", track.album);
+  const meta: Record<string, DbusVariant> = {};
+  meta["mpris:trackid"] = new DbusVariant("o", OBJ_PATH + "/TrackId");
+  if (track.title) meta["xesam:title"] = new DbusVariant("s", track.title);
+  if (track.artist) meta["xesam:artist"] = new DbusVariant("as", [track.artist]);
+  if (track.album) meta["xesam:album"] = new DbusVariant("s", track.album);
   if (track.path) {
     const url = /^https?:\/\//i.test(track.path) ? track.path : "file://" + track.path;
-    meta["xesam:url"] = new dbus.Variant("s", url);
+    meta["xesam:url"] = new DbusVariant("s", url);
   }
-  const dur = parseDuration(track.duration);
-  if (dur > 0) meta["mpris:length"] = new dbus.Variant("x", dur);
+  const dur = parseDuration(track.duration ?? "");
+  if (dur > 0) meta["mpris:length"] = new DbusVariant("x", dur);
   return meta;
 }
 
 export function initMpris(onAction: (action: string) => void): void {
-  bus = dbus.sessionBus();
+  const currentBus = sessionBus();
+  bus = currentBus;
 
-  bus.requestName(BUS_NAME, 0, (err) => {
+  currentBus.requestName(BUS_NAME, 0, (err: unknown) => {
     if (err) return;
 
     playerImpl = MprisPlayer.impl;
@@ -108,7 +125,7 @@ export function initMpris(onAction: (action: string) => void): void {
     const isKde = (process.env.XDG_CURRENT_DESKTOP || "").toLowerCase().includes("kde");
 
     if (isKde) {
-      bus.addMatch(
+      currentBus.addMatch(
         "type=signal,interface=org.kde.kglobalaccel.Component,member=globalShortcutPressed",
       );
       const SIGNAL_MAP: Record<string, string> = {
@@ -119,11 +136,12 @@ export function initMpris(onAction: (action: string) => void): void {
         pausemedia: "pause",
         stopmedia: "stop",
       };
-      bus.connection.on("message", (msg) => {
+      currentBus.connection.on("message", (msg) => {
         if (msg.interface === "org.kde.kglobalaccel.Component" && msg.member === "globalShortcutPressed") {
-          const action = msg.body && msg.body[1];
-          const mapped = SIGNAL_MAP[action as string];
-          if (mapped) onAction(mapped);
+          const action = msg.body?.[1];
+          if (typeof action === "string" && action in SIGNAL_MAP) {
+            onAction(SIGNAL_MAP[action] as string);
+          }
         }
       });
       const noop = () => {};
@@ -148,31 +166,32 @@ export function initMpris(onAction: (action: string) => void): void {
     playerImpl.SetPosition = () => {};
     playerImpl.OpenUri = () => {};
 
-    bus.export(OBJ_PATH, MprisRoot);
-    bus.export(OBJ_PATH, MprisPlayer);
+    currentBus.export(OBJ_PATH, MprisRoot);
+    currentBus.export(OBJ_PATH, MprisPlayer);
   });
 }
 
 export function updateMprisState(state: {
   status?: string;
-  track?: { title?: string; artist?: string; album?: string; path?: string; duration?: string } | null;
+  track?: MprisTrack | null;
   position?: number;
   volume?: number;
   canNext?: boolean;
   canPrev?: boolean;
 }): void {
-  if (!playerImpl || !playerEmit) return;
+  if (!playerImpl || !playerEmit || !bus) return;
 
   try {
-    const changed: Record<string, any> = {};
+    const changed: Record<string, unknown> = {};
 
     if (state.status !== undefined) {
       playerImpl.PlaybackStatus = state.status;
       changed.PlaybackStatus = state.status;
     }
     if (state.track !== undefined) {
-      playerImpl.Metadata = toMetadata(state.track);
-      changed.Metadata = toMetadata(state.track);
+      const metadata = toMetadata(state.track);
+      playerImpl.Metadata = metadata;
+      changed.Metadata = metadata;
     }
     if (state.position !== undefined) {
       playerImpl.Position = Math.round(state.position * 1000000);

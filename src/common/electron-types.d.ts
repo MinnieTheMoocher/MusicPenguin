@@ -116,6 +116,7 @@ interface ElectronAPI {
   loadSettings: () => Promise<any>;
   saveSettings: (settings: any) => Promise<void>;
   saveSettingsSync: (settings: any) => void;
+  listDesigns: () => Promise<{ builtin: { id: string; path: string; href: string }[]; custom: { id: string; path: string; href: string }[] }>;
   incrementPlaycount: (filePath: string) => Promise<number>;
   savePlaylist: (paths: string[]) => Promise<{ canceled: boolean; path?: string }>;
   loadPlaylist: () => Promise<{ canceled: boolean; paths?: string[]; filePath?: string }>;
@@ -124,6 +125,9 @@ interface ElectronAPI {
   getVersion: () => Promise<string>;
   getPlayableExtensions: () => Promise<string[]>;
   onMediaKey: (callback: (action: string) => void) => () => void;
+  /* Report the measured now-playing bar height (CSS px) so the main
+     process can keep the window from being resized below it. */
+  setNowPlayingHeight: (height: number) => void;
   updateMprisState: (state: {
     status?: string;
     track?: { title?: string; artist?: string; album?: string; path?: string; duration?: string } | null;

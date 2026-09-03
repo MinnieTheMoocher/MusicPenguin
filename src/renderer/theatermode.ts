@@ -4,51 +4,51 @@ import { audio, formatTime } from "./audio.js";
 import { setupRatingHover } from "./list-view.js";
 import { onPlaybackFailure, setSilentSkipHandler } from "./playback-error.js";
 import { MEDIA_FILE_EXTENSIONS, MIN_EXTRA_IMAGE_SIZE, THEATER_FADE_TOTAL_MS } from "../common/config.js";
-import { ICON_PREV, ICON_NEXT, ICON_PLAY } from "./icons.js";
+import { ICON_PREV, ICON_NEXT, ICON_PLAY_PAUSE, ICON_SPEAKER, ICON_MUTE, ICON_MUSIC_NOTE } from "./icons.js";
 import { t } from "../common/i18n/index.js";
 
 const overlay = document.createElement("div");
 overlay.id = "theater-mode";
 overlay.innerHTML = `
-  <div id="tm-bg"></div>
-  <div id="tm-close-area"><button id="tm-close" data-i18n-title="Close" title="Close">&times;</button></div>
-  <div id="tm-body">
-    <div id="tm-cover-area">
-      <img id="tm-cover" alt="" />
-      <div id="tm-cover-placeholder">♫</div>
+  <div id="theater-bg"></div>
+  <div id="theater-close-area"><button id="theater-close" data-i18n-title="Close" title="Close">&times;</button></div>
+  <div id="theater-body">
+    <div id="theater-cover-area">
+      <img id="theater-cover" alt="" />
+      <div id="theater-cover-placeholder">${ICON_MUSIC_NOTE}</div>
     </div>
-    <div id="tm-info">
-      <div id="tm-artist"></div>
-      <div id="tm-title"></div>
-      <div id="tm-album-line"></div>
-      <div id="tm-year"></div>
-      <div id="tm-bottom-group">
-        <div id="tm-controls">
-          <button id="tm-prev-btn" data-i18n-title="Previous Track" title="Previous Track">${ICON_PREV}</button>
-          <button id="tm-play-btn" data-i18n-title="Play" title="Play">${ICON_PLAY}</button>
-          <button id="tm-next-btn" data-i18n-title="Next Track" title="Next Track">${ICON_NEXT}</button>
-          <span id="tm-current-time" data-i18n-title="Elapsed time of current track" title="Elapsed time of current track">00:00</span>
-          <div id="tm-progress-wrap">
-            <div id="tm-progress-track" data-i18n-title="Progress" title="Progress">
-              <div id="tm-progress-fill"></div>
+    <div id="theater-info">
+      <div id="theater-artist"></div>
+      <div id="theater-title"></div>
+      <div id="theater-album-line"></div>
+      <div id="theater-year"></div>
+      <div id="theater-bottom-group">
+        <div id="theater-controls">
+          <button id="theater-prev-btn" data-i18n-title="Previous Track" title="Previous Track">${ICON_PREV}</button>
+          <button id="theater-play-btn" data-i18n-title="Play" title="Play">${ICON_PLAY_PAUSE}</button>
+          <button id="theater-next-btn" data-i18n-title="Next Track" title="Next Track">${ICON_NEXT}</button>
+          <span id="theater-current-time" data-i18n-title="Elapsed time of current track" title="Elapsed time of current track">00:00</span>
+          <div id="theater-progress-wrap">
+            <div id="theater-progress-track" data-i18n-title="Progress" title="Progress">
+              <div id="theater-progress-fill"></div>
             </div>
-            <div id="tm-rating"><span id="tm-rating-inner" data-i18n-title="Rating" title="Rating"></span></div>
+            <div id="theater-rating"><span id="theater-rating-inner" data-i18n-title="Rating" title="Rating"></span></div>
           </div>
-          <span id="tm-duration" data-i18n-title="Track length" title="Track length">00:00</span>
+          <span id="theater-duration" data-i18n-title="Track length" title="Track length">00:00</span>
         </div>
       </div>
     </div>
   </div>
-  <div id="tm-volume-hover-area">
-    <div id="tm-volume-section">
-      <button id="tm-volume-icon" data-i18n-title="Mute" title="Mute">🔊</button>
-      <input type="range" id="tm-volume-slider" min="0" max="1" step="0.01" value="1" data-i18n-title="Volume" title="Volume" />
+  <div id="theater-volume-hover-area">
+    <div id="theater-volume-section">
+      <button id="theater-volume-icon" data-i18n-title="Mute" title="Mute">${ICON_SPEAKER}</button>
+      <input type="range" id="theater-volume-slider" min="0" max="1" step="0.01" value="1" data-i18n-title="Volume" title="Volume" />
     </div>
   </div>
 `;
 document.body.appendChild(overlay);
 
-overlay.querySelector("#tm-close")!.addEventListener("click", hide);
+overlay.querySelector("#theater-close")!.addEventListener("click", hide);
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && overlay.style.display === "flex") hide();
 });
@@ -62,25 +62,25 @@ document.addEventListener("fullscreenchange", () => {
    the rating stars, the volume slider and the cover (which cycles
    images) are excluded. The mousedown bookkeeping prevents closing
    when a control drag (seek/volume) ends outside that control. */
-const TM_KEEP_OPEN_SELECTOR = "button, input, #tm-progress-track, #tm-rating, #tm-cover-area";
+const THEATER_KEEP_OPEN_SELECTOR = "button, input, #theater-progress-track, #theater-rating, #theater-cover-area";
 /* Clicks arriving within this window after the overlay opened are
    ignored. Without it the second click of a double-click on the detail
    panel's cover would instantly close the just-opened overlay (tracks
    without cover art open fast enough for that race to be visible). */
-const TM_OPEN_CLICK_GRACE_MS = 500;
-let tmOpenedAt = 0;
-let tmPressInControl = false;
+const THEATER_OPEN_CLICK_GRACE_MS = 500;
+let theaterOpenedAt = 0;
+let theaterPressInControl = false;
 
 overlay.addEventListener("mousedown", (e) => {
-  tmPressInControl = !!(e.target as HTMLElement).closest(TM_KEEP_OPEN_SELECTOR);
+  theaterPressInControl = !!(e.target as HTMLElement).closest(THEATER_KEEP_OPEN_SELECTOR);
 });
 
 overlay.addEventListener("click", (e) => {
-  const wasInControl = tmPressInControl;
-  tmPressInControl = false;
+  const wasInControl = theaterPressInControl;
+  theaterPressInControl = false;
   if (wasInControl) return;
-  if ((e.target as HTMLElement).closest(TM_KEEP_OPEN_SELECTOR)) return;
-  if (Date.now() - tmOpenedAt < TM_OPEN_CLICK_GRACE_MS) return;
+  if ((e.target as HTMLElement).closest(THEATER_KEEP_OPEN_SELECTOR)) return;
+  if (Date.now() - theaterOpenedAt < THEATER_OPEN_CLICK_GRACE_MS) return;
   hide();
 });
 
@@ -88,11 +88,11 @@ overlay.addEventListener("click", (e) => {
 let cursorTimer: ReturnType<typeof setTimeout> | null = null;
 
 function showCursor(): void {
-  overlay.classList.remove("tm-idle");
+  overlay.classList.remove("theater-idle");
 }
 
 function hideCursor(): void {
-  overlay.classList.add("tm-idle");
+  overlay.classList.add("theater-idle");
 }
 
 function resetCursorTimer(): void {
@@ -113,13 +113,13 @@ function stopCursorTimer(): void {
 
 /* ── Playback controls ──────────────────────────────────── */
 
-const tmPlayBtn = overlay.querySelector("#tm-play-btn") as HTMLButtonElement;
-const tmCurrentTimeEl = overlay.querySelector("#tm-current-time") as HTMLSpanElement;
-const tmDurationEl = overlay.querySelector("#tm-duration") as HTMLSpanElement;
-const tmProgressFill = overlay.querySelector("#tm-progress-fill") as HTMLDivElement;
-const tmProgressTrack = overlay.querySelector("#tm-progress-track") as HTMLDivElement;
-const tmPrevBtn = overlay.querySelector("#tm-prev-btn") as HTMLButtonElement;
-const tmNextBtn = overlay.querySelector("#tm-next-btn") as HTMLButtonElement;
+const theaterPlayBtn = overlay.querySelector("#theater-play-btn") as HTMLButtonElement;
+const theaterCurrentTimeEl = overlay.querySelector("#theater-current-time") as HTMLSpanElement;
+const theaterDurationEl = overlay.querySelector("#theater-duration") as HTMLSpanElement;
+const theaterProgressFill = overlay.querySelector("#theater-progress-fill") as HTMLDivElement;
+const theaterProgressTrack = overlay.querySelector("#theater-progress-track") as HTMLDivElement;
+const theaterPrevBtn = overlay.querySelector("#theater-prev-btn") as HTMLButtonElement;
+const theaterNextBtn = overlay.querySelector("#theater-next-btn") as HTMLButtonElement;
 
 let onPrevTrack: (() => void) | null = null;
 let onNextTrack: (() => void) | null = null;
@@ -129,8 +129,8 @@ let onCanNextTrack: (() => boolean) | null = null;
    showing (wired to now-playing's loadTrack/playTrack via index.ts; a
    direct import would be circular). Load fires when theater mode
    opens with NOTHING in the <audio> element yet — the track is
-   preloaded paused so ⏮/⏭ availability reflects its real position;
-   actual playback waits for the ⏯ button. */
+   preloaded paused so prev/next availability reflects its real position;
+   actual playback waits for the play button. */
 let onLoadShownTrack: ((path: string) => void) | null = null;
 let onPlayShownTrack: ((path: string) => void) | null = null;
 let transitioning = false;
@@ -157,105 +157,104 @@ export function setShownTrackHandlers(
 }
 
 function updateNavButtons(): void {
-  tmPrevBtn.disabled = onCanPrevTrack ? !onCanPrevTrack() : true;
-  tmNextBtn.disabled = onCanNextTrack ? !onCanNextTrack() : true;
+  theaterPrevBtn.disabled = onCanPrevTrack ? !onCanPrevTrack() : true;
+  theaterNextBtn.disabled = onCanNextTrack ? !onCanNextTrack() : true;
 }
 
-tmPrevBtn.addEventListener("click", () => {
-  if (!onPrevTrack || tmPrevBtn.disabled) return;
+theaterPrevBtn.addEventListener("click", () => {
+  if (!onPrevTrack || theaterPrevBtn.disabled) return;
   transitioning = true;
   isManualTransition = true;
-  overlay.classList.add("tm-transitioning");
+  overlay.classList.add("theater-transitioning");
   onPrevTrack();
   updateNavButtons();
 });
 
-function tmAdvanceNext(): void {
-  if (!onNextTrack || tmNextBtn.disabled) return;
+function theaterAdvanceNext(): void {
+  if (!onNextTrack || theaterNextBtn.disabled) return;
   transitioning = true;
   isManualTransition = true;
-  overlay.classList.add("tm-transitioning");
+  overlay.classList.add("theater-transitioning");
   onNextTrack();
   updateNavButtons();
 }
-tmNextBtn.addEventListener("click", tmAdvanceNext);
+theaterNextBtn.addEventListener("click", theaterAdvanceNext);
 
 /* ── Silent skip over unplayable tracks ─────────────────── */
 /* While theater mode is open, a failed playback must not raise the
    unplayable-file dialog: the track is skipped forward instead (like
-   pressing ⏭). Consecutive skips are capped so a fully broken list
+   pressing next). Consecutive skips are capped so a fully broken list
    cannot make the app skip forever; the cap resets whenever a track
    actually starts playing. */
-const TM_MAX_AUTO_SKIPS = 25;
-let tmAutoSkips = 0;
+const THEATER_MAX_AUTO_SKIPS = 25;
+let theaterAutoSkips = 0;
 
 setSilentSkipHandler(() => {
   if (overlay.style.display !== "flex") return false;
-  if (tmAutoSkips >= TM_MAX_AUTO_SKIPS) {
+  if (theaterAutoSkips >= THEATER_MAX_AUTO_SKIPS) {
     revealInstantly(); /* un-stick an armed fade-over-black */
     return true;
   }
-  tmAutoSkips++;
-  tmAdvanceNext();
+  theaterAutoSkips++;
+  theaterAdvanceNext();
   return true;
 });
 
-audio.addEventListener("playing", () => { tmAutoSkips = 0; });
+audio.addEventListener("playing", () => { theaterAutoSkips = 0; });
 
-const tmVolumeSlider = overlay.querySelector("#tm-volume-slider") as HTMLInputElement;
-const tmVolumeIcon = overlay.querySelector("#tm-volume-icon") as HTMLButtonElement;
+const theaterVolumeSlider = overlay.querySelector("#theater-volume-slider") as HTMLInputElement;
+const theaterVolumeIcon = overlay.querySelector("#theater-volume-icon") as HTMLButtonElement;
 
-function tmUpdateVolumeIcon(): void {
-  if (audio.muted || audio.volume === 0) {
-    tmVolumeIcon.innerHTML = "&#128263;";
-    tmVolumeIcon.title = t("Unmute");
-  } else if (audio.volume < 0.5) {
-    tmVolumeIcon.innerHTML = "&#128265;";
-    tmVolumeIcon.title = t("Mute");
-  } else {
-    tmVolumeIcon.innerHTML = "&#128266;";
-    tmVolumeIcon.title = t("Mute");
-  }
+function theaterUpdateVolumeIcon(): void {
+  const muted = audio.muted || audio.volume === 0;
+  theaterVolumeIcon.innerHTML = muted ? ICON_MUTE : ICON_SPEAKER;
+  theaterVolumeIcon.title = t(muted ? "Unmute" : "Mute");
 }
 
 document.addEventListener("language-changed", () => {
-  tmPlayBtn.title = t(audio.paused ? "Play" : "Pause");
-  tmUpdateVolumeIcon();
+  theaterPlayBtn.title = t(audio.paused ? "Play" : "Pause");
+  theaterUpdateVolumeIcon();
 });
+
+function theaterUpdateSliderFill(): void {
+  const pct = (audio.muted ? 0 : audio.volume) * 100;
+  theaterVolumeSlider.style.setProperty("--slider-fill", pct + "%");
+}
 
 audio.addEventListener("volumechange", () => {
   const vol = audio.muted ? 0 : audio.volume;
-  tmVolumeSlider.value = String(vol);
-  tmUpdateVolumeIcon();
+  theaterVolumeSlider.value = String(vol);
+  theaterUpdateSliderFill();
+  theaterUpdateVolumeIcon();
 });
 
-tmVolumeSlider.addEventListener("input", () => {
-  audio.volume = parseFloat(tmVolumeSlider.value);
+theaterVolumeSlider.addEventListener("input", () => {
+  audio.volume = parseFloat(theaterVolumeSlider.value);
   audio.muted = false;
 });
 
-tmVolumeIcon.addEventListener("click", () => {
+theaterVolumeIcon.addEventListener("click", () => {
   audio.muted = !audio.muted;
 });
 
 /* ── Volume hover ─────────────────────────────────────── */
-const tmVolumeHoverArea = overlay.querySelector("#tm-volume-hover-area") as HTMLElement;
-const tmVolumeSection = overlay.querySelector("#tm-volume-section") as HTMLElement;
-const tmBottomGroup = overlay.querySelector("#tm-bottom-group") as HTMLElement;
-let tmVolTimer: ReturnType<typeof setTimeout> | null = null;
+const theaterVolumeHoverArea = overlay.querySelector("#theater-volume-hover-area") as HTMLElement;
+const theaterVolumeSection = overlay.querySelector("#theater-volume-section") as HTMLElement;
+const theaterBottomGroup = overlay.querySelector("#theater-bottom-group") as HTMLElement;
+let theaterVolTimer: ReturnType<typeof setTimeout> | null = null;
 
-tmVolumeHoverArea.addEventListener("mouseenter", () => {
-  if (tmVolTimer) { clearTimeout(tmVolTimer); tmVolTimer = null; }
-  tmVolumeSection.classList.add("tm-volume-visible");
+theaterVolumeHoverArea.addEventListener("mouseenter", () => {
+  if (theaterVolTimer) { clearTimeout(theaterVolTimer); theaterVolTimer = null; }
+  theaterVolumeSection.classList.add("theater-volume-visible");
 });
-tmVolumeHoverArea.addEventListener("mouseleave", () => {
-  tmVolTimer = setTimeout(() => {
-    tmVolumeSection.classList.remove("tm-volume-visible");
-    tmVolTimer = null;
+theaterVolumeHoverArea.addEventListener("mouseleave", () => {
+  theaterVolTimer = setTimeout(() => {
+    theaterVolumeSection.classList.remove("theater-volume-visible");
+    theaterVolTimer = null;
   }, 600);
 });
 
-tmPlayBtn.addEventListener("click", () => {
+theaterPlayBtn.addEventListener("click", () => {
   /* Nothing loaded (load was refused, e.g. an unplayable file): let
      playTrack handle it — that includes the external-player flow. */
   if (!audio.src) {
@@ -282,7 +281,7 @@ tmPlayBtn.addEventListener("click", () => {
 function getTransitionMs(): number {
   return THEATER_FADE_TOTAL_MS / 2;
 }
-overlay.style.setProperty("--tm-transition-duration", getTransitionMs() + "ms");
+overlay.style.setProperty("--theater-transition-duration", getTransitionMs() + "ms");
 
 /* ── Fade eligibility ───────────────────────────────────── */
 /* The fade-over-black between two tracks is only shown when it FITS:
@@ -296,7 +295,7 @@ overlay.style.setProperty("--tm-transition-duration", getTransitionMs() + "ms");
    that is shorter than the fade duration (or opened in theater mode
    too late) never reaches an eligible state and ends without any
    fading. Reset for every newly shown track. */
-let tmFadeOutPossible = false;
+let theaterFadeOutPossible = false;
 
 /* True when the fade-in would fit into the NEW track currently loaded
    in the audio element. Unknown duration (NaN) counts as fitting; the
@@ -309,15 +308,15 @@ function fadeInFitsNextTrack(): boolean {
 /* Swap to the already-updated content without ANY fade animation. */
 function revealInstantly(): void {
   transitioning = false;
-  overlay.classList.add("tm-no-anim");
-  overlay.classList.remove("tm-transitioning");
+  overlay.classList.add("theater-no-anim");
+  overlay.classList.remove("theater-transitioning");
   void overlay.offsetWidth; /* style flush so the removal applies instantly */
-  requestAnimationFrame(() => overlay.classList.remove("tm-no-anim"));
+  requestAnimationFrame(() => overlay.classList.remove("theater-no-anim"));
 }
 
 audio.addEventListener("play", async () => {
-  tmPlayBtn.innerHTML = "&#x23F8;&#xFE0F;";
-  tmPlayBtn.title = t("Pause");
+  theaterPlayBtn.classList.add("playing");
+  theaterPlayBtn.title = t("Pause");
   if (overlay.style.display !== "flex") return;
   const path = decodeURIComponent(audio.src.replace(/^file:\/\//, ""));
   if (!path || path === currentPath) return;
@@ -335,33 +334,33 @@ audio.addEventListener("play", async () => {
   } catch { /* ignore */ }
   if (transitioning && fadeInFits) {
     transitioning = false;
-    overlay.classList.remove("tm-transitioning"); /* animated fade-in from black */
+    overlay.classList.remove("theater-transitioning"); /* animated fade-in from black */
   } else {
     revealInstantly(); /* sudden immediate swap */
   }
   updateNavButtons();
 });
 audio.addEventListener("pause", () => {
-  tmPlayBtn.innerHTML = "&#x25B6;&#xFE0F;";
-  tmPlayBtn.title = t("Play");
+  theaterPlayBtn.classList.remove("playing");
+  theaterPlayBtn.title = t("Play");
 });
 audio.addEventListener("timeupdate", () => {
   if (audio.duration) {
-    tmCurrentTimeEl.textContent = formatTime(audio.currentTime);
+    theaterCurrentTimeEl.textContent = formatTime(audio.currentTime);
     const pct = (audio.currentTime / audio.duration) * 100;
-    if (!tmDragging) {
-      tmProgressFill.style.width = pct + "%";
+    if (!theaterDragging) {
+      theaterProgressFill.style.width = pct + "%";
     }
     if (overlay.style.display === "flex" && currentPath && !transitioning) {
       const remaining = (audio.duration - audio.currentTime) * 1000;
       const transitionMs = getTransitionMs();
       if (remaining > transitionMs && onCanNextTrack?.()) {
-        tmFadeOutPossible = true; /* plenty of runway left, fade-out may start at the threshold */
-      } else if (remaining > 0 && tmFadeOutPossible) {
+        theaterFadeOutPossible = true; /* plenty of runway left, fade-out may start at the threshold */
+      } else if (remaining > 0 && theaterFadeOutPossible) {
         /* threshold crossed from above: the fade-out fits into the
            rest of this track (to timeupdate tick accuracy) */
         transitioning = true;
-        overlay.classList.add("tm-transitioning");
+        overlay.classList.add("theater-transitioning");
       }
       /* else: remaining <= fade duration and never eligible — the
          fade-out cannot fit into this track -> sudden transition */
@@ -369,7 +368,7 @@ audio.addEventListener("timeupdate", () => {
   }
 });
 audio.addEventListener("loadedmetadata", () => {
-  tmDurationEl.textContent = formatTime(audio.duration);
+  theaterDurationEl.textContent = formatTime(audio.duration);
   syncProgress();
   /* A fade-in that is already running but cannot fit into the new
      track (its duration only became known now) is aborted and the
@@ -389,58 +388,58 @@ audio.addEventListener("seeked", () => {
     const remaining = audio.duration - audio.currentTime;
     if (remaining * 1000 > getTransitionMs()) {
       transitioning = false;
-      overlay.classList.remove("tm-transitioning");
+      overlay.classList.remove("theater-transitioning");
     }
   }
 });
 audio.addEventListener("ended", () => {
-  tmPlayBtn.innerHTML = "&#x25B6;&#xFE0F;";
-  tmPlayBtn.title = t("Play");
-  tmProgressFill.style.width = "0%";
-  tmCurrentTimeEl.textContent = "00:00";
-  if (overlay.style.display === "flex" && !transitioning && tmFadeOutPossible && onCanNextTrack?.()) {
+  theaterPlayBtn.classList.remove("playing");
+  theaterPlayBtn.title = t("Play");
+  theaterProgressFill.style.width = "0%";
+  theaterCurrentTimeEl.textContent = "00:00";
+  if (overlay.style.display === "flex" && !transitioning && theaterFadeOutPossible && onCanNextTrack?.()) {
     /* Fade-out was eligible but got missed between timeupdate ticks:
        keep the screen black through the track gap so the next track
        can fade in. Never armed when the fade could not fit anyway. */
     transitioning = true;
-    overlay.classList.add("tm-transitioning");
+    overlay.classList.add("theater-transitioning");
   }
 });
 
 function syncProgress(): void {
   if (!audio.duration) return;
   const pct = (audio.currentTime / audio.duration) * 100;
-  tmProgressFill.style.width = pct + "%";
-  tmCurrentTimeEl.textContent = formatTime(audio.currentTime);
+  theaterProgressFill.style.width = pct + "%";
+  theaterCurrentTimeEl.textContent = formatTime(audio.currentTime);
 }
 
-function tmPctFromClientX(clientX: number): number {
+function theaterPctFromClientX(clientX: number): number {
   if (!audio.duration) return 0;
-  const rect = tmProgressTrack.getBoundingClientRect();
+  const rect = theaterProgressTrack.getBoundingClientRect();
   return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
 }
 
-let tmDragging = false;
-let tmDragPct = 0;
+let theaterDragging = false;
+let theaterDragPct = 0;
 
-tmProgressTrack.addEventListener("mousedown", (e) => {
-  tmDragging = true;
-  tmDragPct = tmPctFromClientX(e.clientX);
-  tmProgressFill.style.width = tmDragPct * 100 + "%";
-  tmCurrentTimeEl.textContent = formatTime(tmDragPct * audio.duration);
+theaterProgressTrack.addEventListener("mousedown", (e) => {
+  theaterDragging = true;
+  theaterDragPct = theaterPctFromClientX(e.clientX);
+  theaterProgressFill.style.width = theaterDragPct * 100 + "%";
+  theaterCurrentTimeEl.textContent = formatTime(theaterDragPct * audio.duration);
 });
 
 document.addEventListener("mousemove", (e) => {
-  if (!tmDragging) return;
-  tmDragPct = tmPctFromClientX(e.clientX);
-  tmProgressFill.style.width = tmDragPct * 100 + "%";
-  tmCurrentTimeEl.textContent = formatTime(tmDragPct * audio.duration);
+  if (!theaterDragging) return;
+  theaterDragPct = theaterPctFromClientX(e.clientX);
+  theaterProgressFill.style.width = theaterDragPct * 100 + "%";
+  theaterCurrentTimeEl.textContent = formatTime(theaterDragPct * audio.duration);
 });
 
 document.addEventListener("mouseup", () => {
-  if (!tmDragging) return;
-  tmDragging = false;
-  audio.currentTime = tmDragPct * audio.duration;
+  if (!theaterDragging) return;
+  theaterDragging = false;
+  audio.currentTime = theaterDragPct * audio.duration;
 });
 
 const NBSP = "\u00A0";
@@ -466,17 +465,17 @@ function hide(): void {
   stopCursorTimer();
   /* Kill every CSS transition/animation before the overlay disappears so
      there is zero visual fade when returning to the main UI. */
-  overlay.classList.add("tm-no-anim");
-  overlay.classList.remove("tm-transitioning");
+  overlay.classList.add("theater-no-anim");
+  overlay.classList.remove("theater-transitioning");
   overlay.style.display = "none";
   /* Strip the no-anim flag on the next frame so a future show is not
      permanently stuck in no-animation mode. */
-  requestAnimationFrame(() => overlay.classList.remove("tm-no-anim"));
+  requestAnimationFrame(() => overlay.classList.remove("theater-no-anim"));
   currentPath = null;
   transitioning = false;
   isManualTransition = false;
-  tmFadeOutPossible = false;
-  tmAutoSkips = 0;
+  theaterFadeOutPossible = false;
+  theaterAutoSkips = 0;
   if (document.fullscreenElement) document.exitFullscreen();
 }
 
@@ -509,12 +508,12 @@ function getBackground(img: HTMLImageElement): string {
   return canvas.toDataURL();
 }
 
-const coverImg = overlay.querySelector("#tm-cover") as HTMLImageElement;
-const coverPlaceholder = overlay.querySelector("#tm-cover-placeholder") as HTMLElement;
-const titleEl = overlay.querySelector("#tm-title") as HTMLDivElement;
-const artistEl = overlay.querySelector("#tm-artist") as HTMLDivElement;
-const albumLineEl = overlay.querySelector("#tm-album-line") as HTMLDivElement;
-const yearEl = overlay.querySelector("#tm-year") as HTMLDivElement;
+const coverImg = overlay.querySelector("#theater-cover") as HTMLImageElement;
+const coverPlaceholder = overlay.querySelector("#theater-cover-placeholder") as HTMLElement;
+const titleEl = overlay.querySelector("#theater-title") as HTMLDivElement;
+const artistEl = overlay.querySelector("#theater-artist") as HTMLDivElement;
+const albumLineEl = overlay.querySelector("#theater-album-line") as HTMLDivElement;
+const yearEl = overlay.querySelector("#theater-year") as HTMLDivElement;
 
 /* ── Front cover / extra images cycling ─────────────────── */
 
@@ -574,7 +573,7 @@ function renderTrackMetadata(row: Track, filePath: string): void {
   yearEl.textContent = year;
   yearEl.style.display = year ? "" : "none";
 
-  const ratingEl = overlay.querySelector("#tm-rating-inner") as HTMLSpanElement;
+  const ratingEl = overlay.querySelector("#theater-rating-inner") as HTMLSpanElement;
   setupRatingHover(ratingEl, row.rating ?? 0, filePath);
 }
 
@@ -594,7 +593,7 @@ export async function refreshTheaterModeMetadata(filePath: string): Promise<void
 
 async function updateContent(filePath: string): Promise<void> {
   currentPath = filePath;
-  tmFadeOutPossible = false; /* fresh fade-out eligibility per track */
+  theaterFadeOutPossible = false; /* fresh fade-out eligibility per track */
   frontCoverUrl = null;
   extraImageUrls = [];
   extraImageIndex = -1;
@@ -627,8 +626,6 @@ async function updateContent(filePath: string): Promise<void> {
 
   renderTrackMetadata(row, filePath);
 
-  overlay.style.background = "#000000";
-
   let dataUrl: string | null = null;
   try {
     const groups = await groupsPromise;
@@ -648,12 +645,9 @@ async function updateContent(filePath: string): Promise<void> {
         if (currentPath === filePath) {
           try {
             const bgData = getBackground(coverImg);
-            const bgEl = overlay.querySelector("#tm-bg") as HTMLElement;
+            const bgEl = overlay.querySelector("#theater-bg") as HTMLElement;
             if (bgEl) {
               bgEl.style.backgroundImage = `url(${bgData})`;
-              bgEl.style.backgroundSize = "cover";
-              bgEl.style.backgroundPosition = "center";
-              bgEl.style.backgroundRepeat = "no-repeat";
             }
           } catch { /* ignore */ }
           syncProgress();
@@ -670,14 +664,14 @@ async function updateContent(filePath: string): Promise<void> {
   } else {
     coverImg.style.display = "none";
     coverPlaceholder.style.display = "flex";
-    const bgEl = overlay.querySelector("#tm-bg") as HTMLElement;
+    const bgEl = overlay.querySelector("#theater-bg") as HTMLElement;
     if (bgEl) bgEl.style.backgroundImage = "";
     syncProgress();
   }
 }
 
 export async function showTheaterMode(filePath: string): Promise<void> {
-  tmAutoSkips = 0;
+  theaterAutoSkips = 0;
   await updateContent(filePath);
   if (currentPath === filePath) {
     syncProgress();
@@ -685,21 +679,21 @@ export async function showTheaterMode(filePath: string): Promise<void> {
     const playingPath = decodeURIComponent(audio.src.replace(/^file:\/\//, ""));
     const isPlaying = currentPath === playingPath;
     /* Nothing loaded yet: preload the SHOWN track (paused) right away
-       so ⏮/⏭ reflect its real position; playback itself waits for the
-       ⏯ button. Controls appear in this state for exactly that. */
+so prev/next reflect its real position; playback itself waits for the
+      play button. Controls appear in this state for exactly that. */
     const wasIdle = !audio.src;
     if (wasIdle && onLoadShownTrack) onLoadShownTrack(currentPath);
     /* controlsUsable must use the PRE-preload state: loading above
        already filled audio.src. */
     const controlsUsable = isPlaying || wasIdle;
-    tmBottomGroup.style.display = controlsUsable ? "" : "none";
-    tmVolumeHoverArea.style.display = controlsUsable ? "" : "none";
-    tmOpenedAt = Date.now();
+    theaterBottomGroup.style.display = controlsUsable ? "" : "none";
+    theaterVolumeHoverArea.style.display = controlsUsable ? "" : "none";
+    theaterOpenedAt = Date.now();
     /* Suppress all CSS transitions on first paint so the overlay
        appears with zero animation delay. */
-    overlay.classList.add("tm-no-anim");
+    overlay.classList.add("theater-no-anim");
     overlay.style.display = "flex";
-    requestAnimationFrame(() => overlay.classList.remove("tm-no-anim"));
+    requestAnimationFrame(() => overlay.classList.remove("theater-no-anim"));
     updateNavButtons();
     try { await document.documentElement.requestFullscreen(); } catch { /* ignored */ }
     /* No fade-out pre-arming here: if the current track is already

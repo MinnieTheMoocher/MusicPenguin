@@ -6,7 +6,7 @@ import { onPlaybackFailure } from "./playback-error.js";
 import { getExternalPlayer } from "./external-player.js";
 import { t } from "../common/i18n/index.js";
 import { debugLog } from "./debug-log.js";
-import { ICON_SHUFFLE_ON, ICON_SHUFFLE_OFF, ICON_REPEAT_OFF, ICON_REPEAT_ONE, ICON_REPEAT_ALL } from "./icons.js";
+import { ICON_SPEAKER, ICON_MUTE, ICON_SHUFFLE_ON, ICON_SHUFFLE_OFF, ICON_REPEAT_OFF, ICON_REPEAT_ONE, ICON_REPEAT_ALL } from "./icons.js";
 
 const playBtn = document.getElementById("play-btn") as HTMLButtonElement;
 const prevBtn = document.getElementById("prev-btn") as HTMLButtonElement;
@@ -15,7 +15,7 @@ const currentTimeEl = document.getElementById("current-time") as HTMLSpanElement
 const durationEl = document.getElementById("duration") as HTMLSpanElement;
 const progressFill = document.getElementById("progress-fill") as HTMLDivElement;
 const progressTrack = document.getElementById("progress-track") as HTMLDivElement;
-const infoEl = document.getElementById("now-playing-info") as HTMLDivElement;
+const nowPlayingTitle = document.getElementById("now-playing-title") as HTMLDivElement;
 const volumeSlider = document.getElementById("volume-slider") as HTMLInputElement;
 const volumeIcon = document.getElementById("volume-icon") as HTMLButtonElement;
 const nowPlayingRating = document.getElementById("now-playing-rating") as HTMLSpanElement;
@@ -47,14 +47,14 @@ const shuffleBtn = document.getElementById("shuffle-btn") as HTMLButtonElement;
 const repeatBtn = document.getElementById("repeat-btn") as HTMLButtonElement;
 
 function updateShuffleBtn(): void {
-  shuffleBtn.textContent = shuffle ? ICON_SHUFFLE_ON : ICON_SHUFFLE_OFF;
+  shuffleBtn.innerHTML = shuffle ? ICON_SHUFFLE_ON : ICON_SHUFFLE_OFF;
   shuffleBtn.title = t(shuffle ? "Disable Shuffle" : "Enable Shuffle");
   shuffleBtn.classList.toggle("active", shuffle);
 }
 
 function updateRepeatBtn(): void {
   const next = REPEAT_CYCLE[(REPEAT_CYCLE.indexOf(repeat) + 1) % REPEAT_CYCLE.length]!;
-  repeatBtn.textContent = REPEAT_ICONS[repeat];
+  repeatBtn.innerHTML = REPEAT_ICONS[repeat];
   repeatBtn.title = t(next === "all" ? "Repeat All" : next === "one" ? "Repeat 1" : "Repeat Off");
   repeatBtn.classList.toggle("active", repeat !== "off");
 }
@@ -242,7 +242,7 @@ function updateListPlayingIndicator(): void {
   for (const row of tbody.children as HTMLCollectionOf<HTMLTableRowElement>) {
     const cell = row.cells[0];
     if (cell) {
-      cell.textContent = actuallyPlaying && row.dataset.path === selectedPath ? "🔊" : "";
+      cell.innerHTML = actuallyPlaying && row.dataset.path === selectedPath ? ICON_SPEAKER : "";
     }
   }
   updatePlaylistPlayingIndicator();
@@ -274,28 +274,24 @@ export function resetNowPlayingWidget(): void {
 }
 
 function updateVolumeIcon(): void {
-  if (audio.muted || audio.volume === 0) {
-    volumeIcon.innerHTML = "&#128263;";
-    volumeIcon.title = t("Unmute");
-  } else {
-    volumeIcon.innerHTML = audio.volume < 0.5 ? "&#128265;" : "&#128266;";
-    volumeIcon.title = t("Mute");
-  }
+  const muted = audio.muted || audio.volume === 0;
+  volumeIcon.innerHTML = muted ? ICON_MUTE : ICON_SPEAKER;
+  volumeIcon.title = t(muted ? "Unmute" : "Mute");
 }
 
 function updateInfoText(): void {
   if (selectedTitle) {
-    infoEl.textContent = selectedTitle;
+    nowPlayingTitle.textContent = selectedTitle;
   } else if (selectedPath) {
     const name = selectedPath.split("/").pop()?.split("\\").pop() || selectedPath;
-    infoEl.textContent = name.replace(/\.[^.]+$/, "");
+    nowPlayingTitle.textContent = name.replace(/\.[^.]+$/, "");
   } else {
-    infoEl.textContent = t("No track selected");
+    nowPlayingTitle.textContent = "";
   }
 }
 
 function setPlayButton(playing: boolean): void {
-  playBtn.textContent = playing ? "⏸️" : "▶️";
+  playBtn.classList.toggle("playing", playing);
   playBtn.title = t(playing ? "Pause" : "Play");
 }
 
@@ -479,7 +475,7 @@ volumeIcon.addEventListener("click", () => {
   audio.muted = !audio.muted;
 });
 
-infoEl.addEventListener("dblclick", () => {
+nowPlayingTitle.addEventListener("dblclick", () => {
   const path = decodeURIComponent(audio.src.replace(/^file:\/\//, ""));
   if (path) showTheaterMode(path);
 });

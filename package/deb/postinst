@@ -1,3 +1,42 @@
 #!/bin/sh
 command -v gtk-update-icon-cache   >/dev/null 2>&1 && gtk-update-icon-cache -f /usr/share/icons/hicolor/ || true
 command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database /usr/share/applications/   || true
+
+# Seed the user's design folder with the example custom designs shipped by the
+# package (see package/custom_designs). Runs as root (dpkg), so the
+# installing user is taken from the sudo context, else the first human account.
+seed_example_designs() {
+    ROOT_SRC="/opt/musicpenguin/example-designs"
+    [ -d "$ROOT_SRC" ] || return 0
+
+    if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
+        TARGET_USER="$SUDO_USER"
+        HOME_DIR=$(getent passwd "$SUDO_USER" 2>/dev/null | cut -d: -f6)
+    elif [ "$(id -u)" = "0" ]; then
+        TARGET_USER=$(getent passwd | awk -F: '$3>=1000 && $3<60000 {print $1; exit}')
+        [ -n "$TARGET_USER" ] || return 0
+        HOME_DIR=$(getent passwd "$TARGET_USER" 2>/dev/null | cut -d: -f6)
+    else
+        TARGET_USER=$(id -un)
+        HOME_DIR=$HOME
+    fi
+    [ -n "$HOME_DIR" ] && [ -d "$HOME_DIR" ] || return 0
+
+    DEST="$HOME_DIR/.config/musicpenguin/designs"
+    mkdir -p "$DEST"
+    for d in "$ROOT_SRC"/*/; do
+        [ -d "$d" ] || continue
+        name=$(basename "$d")
+        if [ ! -d "$DEST/$name" ]; then
+            cp -r "$d" "$DEST/$name"
+            chmod -R u+rwX,go+rX "$DEST/$name" || true
+            if [ "$(id -u)" = "0" ]; then
+                chown -R "$TARGET_USER" "$DEST/$name" 2>/dev/null || true
+            fi
+        fi
+    done
+    if [ "$(id -u)" = "0" ]; then
+        chown "$TARGET_USER" "$DEST" 2>/dev/null || true
+    fi
+}
+seed_example_designs

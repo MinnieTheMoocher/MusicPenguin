@@ -1,5 +1,17 @@
 # MusicPenguin Changelog
 
+<img src="doc/musicpenguin256.png" width=150 alt="MusicPenguin icon">
+
+## musicpenguin 0.0.4
+
+* feature: app look now can be styled by custom CSS by end user (located in `~/.config/musicpenguin/designs`, create new folders there as desired)
+* feature: new design: Blue
+* feature: new design: 80's Stereo 01
+* feature: new design: 80's Stereo 02
+* feature: new design: Tropical Sorbet
+* change:  replaced nearly all Emoji/Unicode icons by `tabler-icons` SVG (MIT licensed)
+* bugfix:  various ui improvements
+
 ## musicpenguin 0.0.3
 
 * feature: provided rpm installation package

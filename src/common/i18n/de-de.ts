@@ -110,7 +110,12 @@ export const deDE: ITranslate = {
     "(unrated)": "(unbewertet)",
 
     // Settings
-    "Dark Mode": "Dunkler Modus",
+    "Design": "Design",
+    "Dark Gray": "Dunkelgrau",
+    "White": "Weiß",
+    "Blue": "Blau",
+    "Built-In": "Eingebaut",
+    "Custom": "Eigene",
     "Language": "Sprache",
     "Debug Log": "Debug-Log",
     "External Player": "Externer Player",
@@ -167,7 +172,6 @@ export const deDE: ITranslate = {
     "Search on $1": "Suche bei $1",
 
     // Now playing / playback
-    "No track selected": "Kein Titel ausgewählt",
     "Cannot play \"$1\"": "\"$1\" kann nicht abgespielt werden",
     "Cannot play \"$1\"\n\nInstall an external player like VLC to play this file format.": "\"$1\" kann nicht abgespielt werden.\n\nInstallieren Sie einen externen Player wie VLC, um dieses Dateiformat abzuspielen.",
     "Unknown file": "Unbekannte Datei",
@@ -197,6 +201,7 @@ export const deDE: ITranslate = {
     // About
     "About MusicPenguin": "Über MusicPenguin",
     "Version $1": "Version $1",
+    "Icons License: $1": "Icons-Lizenz: $1",
 
     // Main process
     "Error": "Fehler",

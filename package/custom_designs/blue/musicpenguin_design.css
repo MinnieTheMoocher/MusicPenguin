@@ -1,0 +1,77 @@
+/* MusicPenguin Design: BLUE
+
+   Author: MinnieTheMoocher
+
+   This file shall only change CSS variables but not introduce own CSS rules.
+
+   Features:
+   - midnight blue base color
+   - dedicated accent color
+   - punchy orange for primary buttons, identical to base CSS
+*/
+
+:root {
+  --bg: #0f1626;
+  --panel-bg: #16203a;
+  --playlist-bg: #16203a;
+  --groups-panel-bg: #16203a;
+  --details-panel-bg: #0f1626;
+  --search-panel-bg: #16203a;
+  --now-playing-bg: #131e35;
+  --overlay-bg: rgba(5, 11, 24, 0.6);
+  --dialog-bg: #18233c;
+
+  --border: #2e3d5c;
+
+  --text: #cfd6e4;
+  --text-muted: #aab4c8;
+
+  --accent: #4f9cf9;
+  --accent-hover: #3d84d6;
+  --button-text-accent: #ffffff;
+  --accent-disabled: #1e3a5f;
+  --button-text-accent-disabled: #7a8a9e;
+
+  --primary: #ff9800;
+  --primary-hover: #f57c00;
+  --button-text-primary: #ffffff;
+  --primary-disabled: #5c3a16;
+  --button-text-primary-disabled: #8d8d8d;
+
+  --theater-btn-bg: var(--primary);
+  --theater-btn-hover: var(--primary-hover);
+  --theater-btn-text: var(--button-text-primary);
+  --theater-btn-disabled: var(--primary-disabled);
+  --theater-btn-text-disabled: var(--button-text-primary-disabled);
+
+  --divider: #3a4a6e;
+  --divider-hover: #7c8db5;
+
+  --hover: #24304f;
+
+  --selected: #20417f;
+  --text-selected: #ffffff;
+
+  --input-bg: #1b2742;
+  --input-invalid-bg: #5c1a1a;
+  --input-border: #3a4a6e;
+
+  --toggle-off: #3a4a6e;
+  --toggle-on: #4f9cf9;
+
+  --progress-track: #2e3d5c;
+  --progress-fill: #4f9cf9;
+  --row-alt: #131e35;
+  --playlist-row-alt: #17233a;
+
+  --scrollbar-thumb: #3a4a6e;
+  --scrollbar-thumb-hover: #5a6f9c;
+
+  --danger: #c62828;
+  --danger-hover: #e53935;
+  --button-text-danger: #ffffff;
+
+  --shadow-light: rgba(0, 0, 0, 0.4);
+  --shadow-medium: rgba(0, 0, 0, 0.25);
+  --shadow-heavy: rgba(0, 0, 0, 0.3);
+}

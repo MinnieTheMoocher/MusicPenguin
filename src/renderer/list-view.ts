@@ -5,6 +5,7 @@ import { noteExternalPlays } from "./now-playing.js";
 import { getExternalPlayer, getExternalPlayerDisplayName } from "./external-player.js";
 import { DEFAULT_COLUMN_WIDTHS } from "../common/config.js";
 import { ARTIST_ALBUM_TRACKNO, SORTING_MODES } from "./sorting.js";
+import { ICON_WARNING, ICON_CARET_UP, ICON_CARET_DOWN } from "./icons.js";
 
 let listSortColumn = "";
 let listSortDirection: "asc" | "desc" = "asc";
@@ -252,6 +253,15 @@ export function setupRatingHover(el: HTMLElement, rating: number, trackPath?: st
   el.dataset.rating = String(rating);
   if (trackPath) el.dataset.trackPath = trackPath;
   el.innerHTML = renderRating(rating);
+}
+
+function setTrackNoCell(td: HTMLTableCellElement, value: string): void {
+  td.textContent = "";
+  if (!value) return;
+  const badge = document.createElement("span");
+  badge.className = "track-no-badge";
+  badge.textContent = value;
+  td.appendChild(badge);
 }
 
 const COLUMNS = [
@@ -607,6 +617,8 @@ function populate(): void {
         td.textContent = item.bpm ? String(item.bpm) : "";
       } else if (key === "title") {
         td.textContent = item.title || (item.filename || item.path).split("/").pop()!.replace(/\.[^.]+$/, "");
+      } else if (key === "trackNo") {
+        setTrackNoCell(td, item.trackNo);
       } else {
         td.textContent = item[key] as string;
       }
@@ -928,7 +940,7 @@ function setupDelegation(): void {
 
         const ascBtn = document.createElement("button");
         ascBtn.className = "playlist-sort-btn" + (listSortColumn === sortKey && listSortDirection === "asc" ? " active" : "");
-        ascBtn.textContent = "▲";
+        ascBtn.innerHTML = ICON_CARET_UP;
         ascBtn.title = t("Sort ascending");
         ascBtn.addEventListener("click", () => {
           closeContextMenu();
@@ -941,7 +953,7 @@ function setupDelegation(): void {
 
         const descBtn = document.createElement("button");
         descBtn.className = "playlist-sort-btn" + (listSortColumn === sortKey && listSortDirection === "desc" ? " active" : "");
-        descBtn.textContent = "▼";
+        descBtn.innerHTML = ICON_CARET_DOWN;
         descBtn.title = t("Sort descending");
         descBtn.addEventListener("click", () => {
           closeContextMenu();
@@ -1227,7 +1239,7 @@ function showDeleteDialog(paths: string[]): void {
 
   const warning = document.createElement("div");
   warning.className = "delete-dialog-warning";
-  warning.textContent = "⚠️";
+  warning.innerHTML = ICON_WARNING;
 
   const question = document.createElement("div");
   question.className = "delete-dialog-question";
@@ -1413,6 +1425,8 @@ export function initVirtualList(
           td.textContent = formatTime(item.duration);
         } else if (key === "playcount") {
           td.textContent = item.playcount ? String(item.playcount) : "";
+        } else if (key === "trackNo") {
+          setTrackNoCell(td, item.trackNo);
         } else {
           td.textContent = item[key] as string;
         }

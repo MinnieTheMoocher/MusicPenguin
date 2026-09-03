@@ -1,0 +1,361 @@
+/* MusicPenguin Design themed with a refreshing tropical fruit sorbet
+
+   Author: MinnieTheMoocher
+
+   This is an experimental fun design that may change CSS variables and introduce
+   own custom CSS rules at will. It is a fun playground, being playful and a bit clownish.
+   Inviting users to play around with MusicPenguin's CSS skinning system.
+*/
+
+:root {
+  --bg: #fdf4ec;
+  --text: #40362f;
+  --text-muted: #7a6a5d;
+  --panel-bg: #f8eee4;
+  --border: #ead6c9;
+  --divider: #e1c8b8;
+  --divider-hover: #c59a86;
+  --hover: #f4e3d6;
+  --selected: #ffa7bd;
+  --text-selected: #6b2438;
+  --input-bg: #fffaf4;
+  --input-border: #e0c4b4;
+  --overlay-bg: rgba(97, 42, 66, 0.35);
+  --dialog-bg: #fff7ee;
+  --toggle-off: #ecd6c8;
+  --toggle-on: #ff5d7d;
+  --now-playing-bg: #ffe9de;
+  --playlist-bg: #fff6ec;
+  --groups-panel-bg: #f8eee4;
+  --details-panel-bg: #fdf4ec;
+  --search-panel-bg: #fff6ec;
+  --progress-track: #f0ddcf;
+  --progress-fill: #ff5d7d;
+  --row-alt: #f9eee2;
+  --playlist-row-alt: #f7eade;
+  --scrollbar-thumb: #ff5d7d;
+  --scrollbar-thumb-hover: #ffa047;
+  --accent: #5aa6d6;
+  --accent-hover: #3f8fc4;
+  --button-text-accent: #ffffff;
+  --danger: #c63a3f;
+  --danger-hover: #e5484d;
+  --button-text-danger: #ffffff;
+  --input-invalid-bg: #ffe6e8;
+  --shadow-light: rgba(97, 42, 66, 0.22);
+  --shadow-medium: rgba(97, 42, 66, 0.16);
+  --shadow-heavy: rgba(97, 42, 66, 0.26);
+}
+
+:root {
+  --watermelon: #ff5d7d;
+  --mango: #ffa047;
+  --pineapple: #ffd166;
+  --tropical-sorbet-gradient: linear-gradient(135deg, var(--watermelon), var(--mango));
+
+  --primary: var(--tropical-sorbet-gradient);
+  --primary-hover: linear-gradient(135deg, #f24a6d, #f08a24);
+  --button-text-primary: #ffffff;
+  --primary-disabled: #e7b6c1;
+  --button-text-primary-disabled: #9a6b76;
+
+  --theater-btn-bg: var(--primary);
+  --theater-btn-hover: var(--primary-hover);
+  --theater-btn-text: var(--button-text-primary);
+  --theater-btn-disabled: var(--primary-disabled);
+  --theater-btn-text-disabled: var(--button-text-primary-disabled);
+
+  --accent-disabled: #e7b6c1;
+  --button-text-accent-disabled: #9a6b76;
+}
+
+html {
+  font-size: 17px;
+}
+
+body {
+  background: linear-gradient(150deg, #fdf4ec, #ffe9ee 45%, #e9f6ec);
+  background-size: 160% 160%;
+}
+
+#app {
+  --now-playing-h: 82px;
+  --list-h: 320px;
+  --groups-w: 280px;
+  --playlist-w: 300px;
+}
+
+::-webkit-scrollbar { width: 16px; height: 16px; }
+
+::-webkit-scrollbar-track {
+  background: linear-gradient(90deg, #fef1ea, #f9e3ea);
+  border-radius: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--watermelon), var(--mango));
+  border-radius: 8px;
+  border: 3px solid #fbebe4;
+  min-height: 48px;
+}
+
+::-webkit-scrollbar-thumb:hover { background: var(--pineapple); }
+
+::-webkit-scrollbar-corner { background: #f7e0e6; }
+
+.btn {
+  border-radius: 12px;
+  transition: background 0.15s, color 0.15s, transform 0.15s, box-shadow 0.15s;
+}
+
+.btn:hover:not(:disabled) { transform: translateY(-2px); }
+
+.btn:active:not(:disabled) { transform: translateY(0); }
+
+.btn-primary, .btn-danger { box-shadow: 0 3px 10px rgba(97, 42, 66, 0.2); }
+
+.delete-dialog-btn-danger {
+  border-radius: 12px;
+  box-shadow: 0 3px 10px rgba(97, 42, 66, 0.2);
+}
+
+#now-playing-rating .star,
+#now-playing-rating .star-half,
+#now-playing-rating .star-half-bg,
+#now-playing-rating .star-half-fg,
+#field-rating .star,
+#field-rating .star-half,
+#field-rating .star-half-bg,
+#field-rating .star-half-fg,
+#list-table td.col-rating .star,
+#list-table td.col-rating .star-half,
+#list-table td.col-rating .star-half-bg,
+#list-table td.col-rating .star-half-fg,
+#theater-rating-inner .star,
+#theater-rating-inner .star-half,
+#theater-rating-inner .star-half-bg,
+#theater-rating-inner .star-half-fg {
+  color: #ff7f27;
+  text-shadow: 0 1px 3px rgba(80, 80, 80, 0.7);
+}
+
+.btn-primary { background: var(--tropical-sorbet-gradient); }
+
+.btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #f24a6d, #f08a24);
+  box-shadow: 0 6px 16px rgba(255, 93, 125, 0.4);
+}
+
+.btn-icon {
+  border-radius: 10px;
+  transition: text-shadow 0.2s, box-shadow 0.2s, transform 0.15s, background 0.15s, border-color 0.2s;
+}
+
+.btn-icon:hover:not(:disabled) { transform: translateY(-1px); }
+
+.btn-normal {
+  background: #dceefb;
+  color: #2c5a7a;
+}
+
+.btn-normal:hover:not(:disabled) {
+  background: #c2e1f7;
+}
+
+.delete-dialog-box, .context-menu { border-radius: 14px; }
+
+.context-menu-item:hover { padding-left: 20px; transition: padding-left 0.15s, background 0.15s; }
+
+.dialog { border-radius: 20px; }
+
+.dialog-header h2 { font-size: 1.1rem; letter-spacing: 0.3px; }
+
+.dialog-section h3 { font-size: 0.95rem; letter-spacing: 0.3px; }
+
+#now-playing {
+  background: linear-gradient(180deg, #fff4ea, var(--now-playing-bg));
+  border-bottom: none;
+  box-shadow: 0 2px 10px rgba(97, 42, 66, 0.16);
+}
+
+#groups-panel { padding-right: 1rem; }
+
+#now-playing-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+}
+
+#play-btn { font-size: 2rem; }
+
+#prev-btn, #next-btn, #repeat-btn, #shuffle-btn { font-size: 1.25rem; }
+
+#current-time, #duration { font-size: 0.85rem; }
+
+#progress-track {
+  height: 8px;
+  border-radius: 5px;
+  border: 1px solid #f0ddd2;
+}
+
+#progress-fill {
+  background: linear-gradient(90deg, var(--pineapple), var(--mango) 45%, var(--watermelon));
+  border-radius: 5px;
+}
+
+#progress-fill::after { box-shadow: 0 0 6px rgba(255, 93, 125, 0.7); }
+
+#volume-slider::-webkit-slider-runnable-track { height: 6px; }
+
+#volume-slider::-webkit-slider-thumb { width: 16px; height: 16px; box-shadow: 0 0 6px rgba(255, 93, 125, 0.7); }
+
+#theater-cover, #theater-cover-placeholder { border-radius: 18px; }
+
+#groups-panel li { border-radius: 10px; }
+
+#groups-panel li.group-heading {
+  letter-spacing: 1.2px;
+  margin-bottom: 4px;
+}
+
+#groups-panel li.selected { box-shadow: 0 2px 8px rgba(255, 93, 125, 0.5); }
+
+#app-logo { width: 170px; height: 170px; }
+
+#list-scroll-thumb,
+#playlist-scroll-thumb {
+  background: linear-gradient(180deg, var(--watermelon), var(--mango));
+  border-radius: 7px;
+  min-height: 48px;
+}
+
+#list-scroll-thumb:hover,
+#playlist-scroll-thumb:hover { background: var(--pineapple); }
+
+#list-scrollbar,
+#playlist-scrollbar { background: #fbe9dd; border-left: 1px solid var(--border); }
+
+#list-table { font-size: 0.95rem; }
+
+#list-table thead th { font-size: 0.9rem; letter-spacing: 0.4px; }
+
+#list-table tbody tr { height: 2.3rem; }
+
+.sort-badge {
+  border-radius: 8px;
+  letter-spacing: 0.5px;
+  box-shadow: 0 1px 3px rgba(255, 93, 125, 0.4);
+}
+
+#cover-area { border-radius: 14px; }
+
+#cover-image { border-radius: 12px; }
+
+#search-input, #detail-form input, #detail-form textarea, #field-rating,
+.toggle-row select, .toggle-row input[type="text"] { border-radius: 10px; }
+
+#search-input { font-size: 0.95rem; }
+
+#search-input:focus { box-shadow: 0 0 0 3px rgba(255, 93, 125, 0.3); border-color: var(--accent); }
+
+.search-btn, #status-cancel-btn, .folder-item .btn-expand { border-radius: 10px; }
+
+.toggle-row input[type="text"].invalid-command {
+  background: var(--danger);
+  color: var(--button-text-danger);
+}
+
+#detail-form input:focus,
+#detail-form textarea:focus,
+#field-rating:focus,
+#search-input:focus,
+.toggle-row select:focus,
+.toggle-row input[type="text"]:focus {
+  border-color: var(--watermelon);
+  box-shadow: 0 0 4px rgba(255, 93, 125, 0.7), 0 0 15px rgba(255, 93, 125, 0.4);
+  outline: none;
+}
+
+#detail-form.fields-readonly input,
+#detail-form.fields-readonly textarea,
+#detail-form.fields-readonly #field-rating,
+#detail-form input:disabled,
+#detail-form textarea:disabled,
+.toggle-row select:disabled,
+.toggle-row input[type="text"]:disabled {
+  border-color: var(--input-border);
+  box-shadow: none;
+  color: var(--text);
+}
+
+#playlist-list { padding: 0 4px; }
+.playlist-item { font-size: 0.95rem; border-radius: 8px; }
+.playlist-item:hover { box-shadow: 0 2px 8px rgba(97, 42, 66, 0.15); }
+#playlist-container { border-radius: 10px; }
+.playlist-cover img { border-radius: 6px; }
+
+#status-bar { background: #f6e7da; border-top: 1px solid var(--border); font-size: 0.82rem; letter-spacing: 0.3px; }
+
+.folder-item:hover, .dlna-item:hover { border-radius: 8px; }
+
+.toggle-track, .toggle-thumb { border-radius: 12px; }
+
+#empty-db-row {
+  justify-content: flex-start;
+}
+
+#about-logo { width: 170px; height: 170px; border-radius: 16px; }
+
+#about-app-name { font-size: 1.6rem; }
+
+/* ── Theater info text: pinned to base skin────────────────────────────────
+   These four elements always use the exact style from musicpenguin_base.css.
+   IDs are kept so a user can still override them in a custom design.
+   ──────────────────────────────────────────────────────────────────────── */
+#theater-title {
+  font-size: 3.2rem;
+  font-weight: 700;
+  line-height: 1.3;
+  margin-bottom: 0.5rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  transition: opacity var(--theater-transition-duration);
+  color: #fff;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+}
+
+#theater-artist {
+  font-size: 1.6rem;
+  opacity: 0.85;
+  margin-bottom: 0.3rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: opacity var(--theater-transition-duration);
+  color: #fff;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+}
+
+#theater-album-line {
+  font-size: 1.1rem;
+  opacity: 0.7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: opacity var(--theater-transition-duration);
+  color: #fff;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+}
+
+#theater-year {
+  font-size: 1.1rem;
+  opacity: 0.7;
+  margin-top: 1em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: opacity var(--theater-transition-duration);
+  color: #fff;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+}

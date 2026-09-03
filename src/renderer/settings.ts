@@ -4,32 +4,62 @@ import { getExternalPlayer, checkExternalPlayerCommand, saveExternalPlayer } fro
 import { getMinAutoplayRating, initMinAutoplayRating, saveMinAutoplayRating } from "./min-autoplay-rating.js";
 import { resetNowPlayingWidget } from "./now-playing.js";
 import { showDetails } from "./detail-panel.js";
+import { ICON_WARNING } from "./icons.js";
 
-type Theme = "light" | "dark";
+interface DesignEntry {
+  id: string;
+  path: string;
+  href: string;
+}
+
+interface DesignList {
+  builtin: DesignEntry[];
+  custom: DesignEntry[];
+}
+
+const designHrefs = new Map<string, string>();
+
+/** Folder name → UI label: underscores → spaces, each word capitalized. */
+function designDisplayName(id: string): string {
+  const words = id.split("_").filter(Boolean);
+  return words.length === 0
+    ? id
+    : words
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ");
+}
+
+function applyDesign(id: string, animate = false): void {
+  const el = document.getElementById("design-css");
+  if (!el) return;
+  const href = designHrefs.get(id);
+  if (!href) return;
+  const swap = (): void => el.setAttribute("href", href);
+  if (animate && "startViewTransition" in document) {
+    document.startViewTransition(swap);
+  } else {
+    swap();
+  }
+}
 
 let onDbClearedCb: (() => void) | null = null;
 export function setOnDatabaseCleared(cb: () => void): void {
   onDbClearedCb = cb;
 }
 
-function applyTheme(theme: Theme): void {
-  document.documentElement.dataset.theme =
-    theme === "light" ? "light" : "";
-}
-
-async function loadTheme(): Promise<Theme> {
+async function loadSavedDesignId(): Promise<string> {
   try {
     const data = await window.electronAPI.loadSettings();
-    if (data) {
-      return data.theme as Theme;
+    if (data && typeof data.design === "string") {
+      return data.design;
     }
   } catch { /* ignore */ }
-  return "dark";
+  return "dark_gray";
 }
 
-async function saveTheme(theme: Theme): Promise<void> {
+async function saveDesign(id: string): Promise<void> {
   try {
-    await window.electronAPI.saveSettings({ theme });
+    await window.electronAPI.saveSettings({ design: id });
   } catch { /* ignore */ }
 }
 
@@ -43,12 +73,79 @@ export async function initSettings(): Promise<void> {
   const btn = document.getElementById("settings-btn")!;
   const overlay = document.getElementById("settings-overlay")!;
   const closeBtn = document.getElementById("dialog-close")!;
-  const toggle = document.getElementById("dark-toggle") as HTMLInputElement;
+  const designSelect = document.getElementById("design-select") as HTMLSelectElement;
   const langSelect = document.getElementById("language-select") as HTMLSelectElement;
 
-  const savedTheme = await loadTheme();
-  applyTheme(savedTheme);
-  toggle.checked = savedTheme !== "light";
+  /* ── Design: runtime discovery (built-in + custom folders) ──
+     Re-queried every time the settings dialog is opened, so the dropdown
+     always reflects the real folder contents (incl. added/removed symlinks). */
+  let designLists: DesignList = { builtin: [], custom: [] };
+
+  function fillDesignOptions(): void {
+    const current = designSelect.value;
+    designSelect.replaceChildren();
+    for (const [label, entries] of [
+      [t("Built-In"), designLists.builtin],
+      [t("Custom"), designLists.custom],
+    ] as Array<[string, DesignEntry[]]>) {
+      if (entries.length === 0) continue;
+      const group = document.createElement("optgroup");
+      group.label = label;
+      for (const entry of entries) {
+        const opt = document.createElement("option");
+        opt.value = entry.id;
+        opt.textContent = designDisplayName(entry.id);
+        opt.title = entry.path;
+        group.appendChild(opt);
+      }
+      designSelect.appendChild(group);
+    }
+    designSelect.value = designHrefs.has(current) && current !== "" ? current : defaultDesignId();
+  }
+
+  async function refreshDesigns(): Promise<void> {
+    try {
+      designLists = await window.electronAPI.listDesigns();
+    } catch { /* ignore */ }
+    designHrefs.clear();
+    for (const d of [...designLists.builtin, ...designLists.custom]) {
+      designHrefs.set(d.id, d.href);
+    }
+    fillDesignOptions();
+  }
+
+  function defaultDesignId(): string {
+    if (designHrefs.has(savedDesign)) return savedDesign;
+    const href = decodeStartupDesignHref();
+    if (href) {
+      for (const d of [...designLists.builtin, ...designLists.custom]) {
+        if (d.href === href) return d.id;
+      }
+    }
+    return designHrefs.has("dark_gray") ? "dark_gray" : (designHrefs.keys().next().value ?? "");
+  }
+
+  /** The startup `?design=` value is a base64-encoded stylesheet href
+      (see src/main/index.ts) — decode it back to compare against discovery. */
+  function decodeStartupDesignHref(): string | null {
+    const q = new URLSearchParams(location.search).get("design");
+    if (!q) return null;
+    try {
+      const bin = atob(q);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return new TextDecoder().decode(bytes);
+    } catch {
+      return null;
+    }
+  }
+
+  const savedDesign = await loadSavedDesignId();
+  await refreshDesigns();
+  if (designHrefs.has(savedDesign)) {
+    applyDesign(savedDesign);
+  }
+  document.addEventListener("language-changed", fillDesignOptions);
 
   for (const lang of Object.values(LANGUAGES).sort((a, b) => a.label.localeCompare(b.label))) {
     const opt = document.createElement("option");
@@ -126,6 +223,8 @@ export async function initSettings(): Promise<void> {
 
   btn.addEventListener("click", () => {
     overlay.classList.remove("hidden");
+    btn.classList.add("active");
+    void refreshDesigns();
   });
 
   /* ── Empty Database ───────────────────────────────────────── */
@@ -143,7 +242,7 @@ export async function initSettings(): Promise<void> {
 
     const warning = document.createElement("div");
     warning.className = "delete-dialog-warning";
-    warning.textContent = "⚠️";
+    warning.innerHTML = ICON_WARNING;
 
     const question = document.createElement("div");
     question.className = "delete-dialog-question";
@@ -165,7 +264,7 @@ export async function initSettings(): Promise<void> {
     });
 
     const cancelBtn = document.createElement("button");
-    cancelBtn.className = "delete-dialog-btn";
+    cancelBtn.className = "btn btn-primary";
     cancelBtn.textContent = t("Cancel");
     cancelBtn.addEventListener("click", () => close());
 
@@ -193,19 +292,21 @@ export async function initSettings(): Promise<void> {
 
   function close(): void {
     overlay.classList.add("hidden");
+    btn.classList.remove("active");
     document.getElementById("status-text")!.textContent = "";
   }
 
   closeBtn.addEventListener("click", close);
   document.getElementById("dialog-ok")!.addEventListener("click", close);
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && !overlay.classList.contains("hidden")) close();
+    if (e.key === "Escape" && !overlay.classList.contains("hidden") && !document.querySelector(".delete-dialog-overlay")) close();
   });
 
-  toggle.addEventListener("change", () => {
-    const theme: Theme = toggle.checked ? "dark" : "light";
-    applyTheme(theme);
-    saveTheme(theme);
+  designSelect.addEventListener("change", () => {
+    const id = designSelect.value;
+    if (!id) return;
+    applyDesign(id, true);
+    saveDesign(id);
   });
 
   /* ── External player ───────────────────────────────────────── */

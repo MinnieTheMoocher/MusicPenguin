@@ -1,13 +1,14 @@
 import { TreeNode, ListItem } from "./types.js";
 import { audio } from "./audio.js";
+import { injectStaticIcons, ICON_CARET_UP, ICON_CARET_DOWN } from "./icons.js";
 import { renderGroups } from "./groups-view.js";
 import { initVirtualList, VirtualListController, loadColumnWidths, loadColumnVisibility, formatTime, setOnDeletedFiles } from "./list-view.js";
 import { applySortingMode, ARTIST_ALBUM_TRACKNO, TRACKNO, FILENAME } from "./sorting.js";
 import { showDetails } from "./detail-panel.js";
-import { setSelectedTrack, playTrack, loadTrack, initNowPlaying, initPlayableExtensions, refreshListIndicator, onTrackEnd, setNavCallbacks, updateNavButtons, onNavStateChange, selectedPath, setMprisNavState, onSelectedPathChange, getShuffle, getRepeat, pickRandomExcluding, resetShuffleHistory, onPlayModeChange, isPlayableFile, refreshNowPlayingMetadata } from "./now-playing.js";
+import { setSelectedTrack, playTrack, loadTrack, initNowPlaying, initPlayableExtensions, refreshListIndicator, onTrackEnd, setNavCallbacks, updateNavButtons, onNavStateChange, selectedPath, setMprisNavState, onSelectedPathChange, getShuffle, getRepeat, pickRandomExcluding, resetShuffleHistory, onPlayModeChange, isPlayableFile, isActuallyPlaying, refreshNowPlayingMetadata } from "./now-playing.js";
 import "./split-pane.js";
 import { loadSplitterState } from "./split-pane.js";
-import { initPlaylist, clearPlaylistPlaying, advancePlaylist, prevPlaylist, isPlaylistPlaying, canPlaylistPrev, canPlaylistNext, updatePlaylistPaths, updatePlaylistEntry, onPlaylistStateChange, onPlaylistSelect, registerMainListSelectionQuery } from "./playlist-panel.js";
+import { initPlaylist, clearPlaylistPlaying, clearPlaylist, advancePlaylist, prevPlaylist, isPlaylistPlaying, canPlaylistPrev, canPlaylistNext, updatePlaylistPaths, updatePlaylistEntry, onPlaylistStateChange, onPlaylistSelect, registerMainListSelectionQuery, hasPlaylistNavBase } from "./playlist-panel.js";
 import { initSearchPanel } from "./search-panel.js";
 import { initSettings, setOnDatabaseCleared } from "./settings.js";
 import { initExternalPlayer } from "./external-player.js";
@@ -19,7 +20,7 @@ import { t, initI18n } from "../common/i18n/index.js";
 import { initCssStrings } from "./css-strings.js";
 import { debugLog } from "./debug-log.js";
 import { passesMinAutoplayRating } from "./min-autoplay-rating.js";
-import { initEmojiButtons } from "./icons.js";
+import iconLicense from "./icons/LICENSE.md";
 
 const HEADER_COLUMNS = ["", "playcount", "track_no", "title", "artist", "album", "album_artist", "composer", "conductor", "year", "genre", "bpm", "rating", "duration", "ext", "path"];
 
@@ -104,6 +105,9 @@ let searchResults: Track[] | null = null;
 let selectedGroupId: string | null = "grp-allfiles";
 let selectedTrackPath: string | null = null;
 let playingTrackPath: string | null = null;
+/* Where the user last established a selection: drives which list Prev/Next
+   act on when nothing is playing ("last one wins"). */
+let navFromList: "main" | "playlist" | null = null;
 let sortColumn = "path";
 let sortDirection: "asc" | "desc" = "asc";
 let manualSortApplied = false;
@@ -335,7 +339,6 @@ function initSortHeaders(): void {
     const col = HEADER_COLUMNS[i];
     if (!col) return;
     (th as HTMLElement).title = headerTooltip(col);
-    (th as HTMLElement).style.cursor = "pointer";
     (th as HTMLElement).dataset.col = col;
     (th as HTMLElement).addEventListener("click", () => {
       if (document.body.classList.contains("dragging")) return;
@@ -353,12 +356,12 @@ function updateSortIndicators(): void {
     const col = th.dataset.col;
     if (!col) return;
     const label = headerLabel(col);
-    const arrow = col === sortColumn ? (sortDirection === "asc" ? "▲" : "▼") : "";
+const isSorted = col === sortColumn;
     span.textContent = label;
-    if (arrow) {
+    if (isSorted) {
       const badge = document.createElement("span");
       badge.className = "sort-badge";
-      badge.textContent = arrow;
+      badge.innerHTML = sortDirection === "asc" ? ICON_CARET_UP : ICON_CARET_DOWN;
       span.appendChild(badge);
     } else {
       const existing = span.querySelector(".sort-badge");
@@ -474,7 +477,8 @@ function getCurrentSource(): Track[] {
 }
 
 function mainListNext(autoPlay = true): void {
-  if (!playingTrackPath) return;
+  const base = mainListNavBase(autoPlay);
+  if (!base) return;
   const source = getCurrentSource();
   const repeat = getRepeat();
   const shuffle = getShuffle();
@@ -502,10 +506,16 @@ function mainListNext(autoPlay = true): void {
     refreshNavButtons();
   };
 
+  const idx = source.findIndex((t) => t.path === base);
+  if (autoPlay && repeat === "one") {
+    if (idx >= 0) startTrack(source[idx]!);
+    return;
+  }
+
   if (shuffle) {
     const paths = source.map((t) => t.path);
     const tried = new Set<string>();
-    let picked: string | null = pickRandomExcluding(paths, playingTrackPath);
+    let picked: string | null = pickRandomExcluding(paths, base);
     while (picked !== null && !usable(picked)) {
       if (tried.has(picked)) { picked = null; break; }
       tried.add(picked);
@@ -515,12 +525,6 @@ function mainListNext(autoPlay = true): void {
     const next = source.find((t) => t.path === picked);
     if (!next) return;
     startTrack(next);
-    return;
-  }
-
-  const idx = source.findIndex((t) => t.path === playingTrackPath);
-  if (repeat === "one") {
-    if (idx >= 0) startTrack(source[idx]!);
     return;
   }
   if (idx < 0) return;
@@ -538,7 +542,8 @@ function mainListNext(autoPlay = true): void {
 }
 
 function mainListPrev(autoPlay = true): void {
-  if (!playingTrackPath) return;
+  const base = mainListNavBase(autoPlay);
+  if (!base) return;
   const source = getCurrentSource();
   const repeat = getRepeat();
   const shuffle = getShuffle();
@@ -561,7 +566,7 @@ function mainListPrev(autoPlay = true): void {
   if (shuffle) {
     const paths = source.map((t) => t.path);
     const tried = new Set<string>();
-    let picked: string | null = pickRandomExcluding(paths, playingTrackPath);
+    let picked: string | null = pickRandomExcluding(paths, base);
     while (picked !== null && !isPlayableFile(picked)) {
       if (tried.has(picked)) { picked = null; break; }
       tried.add(picked);
@@ -574,7 +579,7 @@ function mainListPrev(autoPlay = true): void {
     return;
   }
 
-  const idx = source.findIndex((t) => t.path === playingTrackPath);
+  const idx = source.findIndex((t) => t.path === base);
   if (idx < 0) return;
 
   for (let j = idx - 1; j >= 0; j--) {
@@ -590,23 +595,32 @@ function mainListPrev(autoPlay = true): void {
 }
 
 function canMainListNext(): boolean {
-  if (!playingTrackPath) return false;
+  if (!mainListNavBase(false)) return false;
   const source = getCurrentSource();
   if (source.length === 0) return false;
   if (getShuffle()) return true;
   if (getRepeat() === "all") return true;
-  const idx = source.findIndex((t) => t.path === playingTrackPath);
+  const idx = source.findIndex((t) => t.path === mainListNavBase(false));
   return idx >= 0 && idx < source.length - 1;
 }
 
 function canMainListPrev(): boolean {
-  if (!playingTrackPath) return false;
+  if (!mainListNavBase(false)) return false;
   const source = getCurrentSource();
   if (source.length === 0) return false;
   if (getShuffle()) return true;
   if (getRepeat() === "all") return true;
-  const idx = source.findIndex((t) => t.path === playingTrackPath);
+  const idx = source.findIndex((t) => t.path === mainListNavBase(false));
   return idx > 0;
+}
+
+/* Row Prev/Next start from: the currently PLAYING track while audio is
+   active (auto-advance always continues from the track that just ended);
+   only for a MANUAL step with nothing playing do we fall back to the LAST
+   row the user selected in the main list. */
+function mainListNavBase(autoPlay = true): string | null {
+  if (autoPlay || isActuallyPlaying()) return playingTrackPath;
+  return selectedTrackPath ?? playingTrackPath;
 }
 
 function renderTrackList(sourceOverride?: Track[]): void {
@@ -802,9 +816,27 @@ function flushDlnaRows(): void {
 /* ── Init ──────────────────────────────────────────────────── */
 
 async function init() {
+  /* Report the measured now-playing bar height to the main process so it
+     can pin the window's minimum height to it (the bar must always stay
+     fully visible). The height is fixed by CSS and only changes when a
+     design switch resizes the bar — the observer re-reports on that. */
+  {
+    const nowPlayingEl = document.getElementById("now-playing");
+    if (nowPlayingEl) {
+      const reportNowPlayingHeight = () => {
+        const h = Math.ceil(nowPlayingEl.getBoundingClientRect().height);
+        if (h > 0) window.electronAPI.setNowPlayingHeight(h);
+      };
+      reportNowPlayingHeight();
+      const observer = new ResizeObserver(reportNowPlayingHeight);
+      observer.observe(nowPlayingEl);
+      window.addEventListener("beforeunload", () => observer.disconnect());
+    }
+  }
+
+  injectStaticIcons();
   await initI18n();
   initCssStrings();
-  initEmojiButtons();
   window.electronAPI.onTagUpdate(applyTagUpdate);
   const statusText = document.getElementById("status-text")!;
   const cancelBtn = document.getElementById("status-cancel-btn")! as HTMLButtonElement;
@@ -847,6 +879,7 @@ async function init() {
   updateSortIndicators();
 
   listCtrl = initVirtualList(listEl, (item) => {
+    navFromList = "main";
     selectedTrackPath = item.trackPath;
     showDetails(item);
     setSelectedTrack(item.trackPath, item.title || undefined);
@@ -1296,11 +1329,13 @@ async function init() {
   );
 
   onPlaylistSelect((path: string) => {
+    navFromList = "playlist";
     const track = tracks.find((t) => t.path === path);
     if (track) {
       const idx = tracks.indexOf(track);
       showDetails(trackToListItem(track, idx));
     }
+    refreshNavButtons();
   });
 
   registerMainListSelectionQuery(() => listCtrl?.hasSelection() ?? false);
@@ -1324,9 +1359,15 @@ async function init() {
     }
   }) as EventListener);
 
+  /* Route prev/next to playlist or main list.  Playlist wins when it is
+     actively playing, or — only while IDLE — when the user last selected
+     there. A main-list track actively playing always uses the main list. */
+  const usePlaylistNav = (): boolean =>
+    isPlaylistPlaying() || (!isActuallyPlaying() && navFromList === "playlist" && hasPlaylistNavBase());
+
   setNavCallbacks(
-    () => { isPlaylistPlaying() ? prevPlaylist(false) : mainListPrev(false); refreshNavButtons(); },
-    () => { isPlaylistPlaying() ? advancePlaylist(false) : mainListNext(false); refreshNavButtons(); },
+    () => { usePlaylistNav() ? prevPlaylist(false) : mainListPrev(false); refreshNavButtons(); },
+    () => { usePlaylistNav() ? advancePlaylist(false) : mainListNext(false); refreshNavButtons(); },
   );
   onSelectedPathChange((path) => { playingTrackPath = path; });
   onNavStateChange(refreshNavButtons);
@@ -1335,18 +1376,18 @@ async function init() {
   refreshNavButtons();
 
   setTrackNavCallbacks(
-    () => isPlaylistPlaying() ? prevPlaylist(false) : mainListPrev(false),
-    () => isPlaylistPlaying() ? advancePlaylist(false) : mainListNext(false),
-    () => isPlaylistPlaying() ? canPlaylistPrev() : canMainListPrev(),
-    () => isPlaylistPlaying() ? canPlaylistNext() : canMainListNext(),
+    () => usePlaylistNav() ? prevPlaylist(false) : mainListPrev(false),
+    () => usePlaylistNav() ? advancePlaylist(false) : mainListNext(false),
+    () => usePlaylistNav() ? canPlaylistPrev() : canMainListPrev(),
+    () => usePlaylistNav() ? canPlaylistNext() : canMainListNext(),
   );
 
-  /* Theater mode opened with nothing playing: it preloads the shown
-     track paused (loadTrack — same as single-select semantics) so its
-     ⏮/⏭ are correct immediately; ⏯ then resumes. Unplayable tracks
-     are NOT preloaded (no external-player side effects on a mere
-     theater mode open) — only an explicit ⏯ may send them there via
-     playTrack. */
+/* Theater mode opened with nothing playing: it preloads the shown
+      track paused (loadTrack — same as single-select semantics) so its
+      prev/next are correct immediately; play resumes. Unplayable tracks
+      are NOT preloaded (no external-player side effects on a mere
+      theater mode open) — only an explicit play may send them there via
+      playTrack. */
   setShownTrackHandlers(
     (path) => { if (isPlayableFile(path)) void loadTrack(path); },
     (path) => { void playTrack(path); },
@@ -1459,6 +1500,7 @@ async function init() {
      user-built "album"/"artist"/"composer"/"folder" group so the left
      panel no longer references tracks that no longer exist. */
   setOnDatabaseCleared(() => {
+    clearPlaylist();
     albumGroupItems = [];
     artistGroupItems = [];
     composerGroupItems = [];
@@ -1480,9 +1522,11 @@ async function init() {
     const aboutOverlay = document.getElementById("about-overlay")!;
     const aboutClose = document.getElementById("about-dialog-close")!;
     const aboutVersion = document.getElementById("about-version")!;
-    const aboutHomepage = document.getElementById("about-github2") as HTMLAnchorElement;
+    const aboutBluesky = document.getElementById("about-bluesky2") as HTMLAnchorElement;
+    const aboutGitHub = document.getElementById("about-github2") as HTMLAnchorElement;
+    const aboutIconset = document.getElementById("about-iconset2") as HTMLAnchorElement;
     const aboutOk = document.getElementById("about-ok")!;
-    const logo = document.getElementById("large-application-logo")!;
+    const logo = document.getElementById("app-logo")!;
 
     function showAbout(): void {
       window.electronAPI.getVersion().then((v) => {
@@ -1498,20 +1542,56 @@ async function init() {
     logo.addEventListener("click", showAbout);
     aboutClose.addEventListener("click", hideAbout);
     aboutOk.addEventListener("click", hideAbout);
-
-    aboutHomepage.addEventListener("click", (e) => {
-      e.preventDefault();
-      window.electronAPI.openExternal(aboutHomepage.href);
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !aboutOverlay.classList.contains("hidden")) hideAbout();
     });
 
-    const aboutBluesky = document.getElementById("about-bluesky2") as HTMLAnchorElement;
+    aboutGitHub.addEventListener("click", (e) => {
+      e.preventDefault();
+      window.electronAPI.openExternal(aboutGitHub.href);
+    });
+
+    document.getElementById("about-logo")!.addEventListener("click", () => {
+      window.electronAPI.openExternal(aboutBluesky.href);
+    });
+
     aboutBluesky.addEventListener("click", (e) => {
       e.preventDefault();
       window.electronAPI.openExternal(aboutBluesky.href);
     });
 
-    document.getElementById("about-logo")!.addEventListener("click", () => {
-      window.electronAPI.openExternal(aboutBluesky.href);
+    aboutIconset.addEventListener("click", (e) => {
+      e.preventDefault();
+      window.electronAPI.openExternal(aboutIconset.href);
+    });
+
+    /* ── License modal: shows the bundled icon license 1:1 ── */
+    const licenseOverlay = document.getElementById("license-overlay")!;
+    const licenseClose = document.getElementById("license-dialog-close")!;
+    const licenseTitle = document.getElementById("license-dialog-title")!;
+    const licenseText = document.getElementById("license-text")!;
+    let licenseLoaded = false;
+
+    function showLicense(): void {
+      licenseTitle.textContent = t("Icons License: $1", "tabler-icons");
+      if (!licenseLoaded) {
+        licenseText.textContent = iconLicense;
+        licenseLoaded = true;
+      }
+      licenseOverlay.classList.remove("hidden");
+    }
+
+    function hideLicense(): void {
+      licenseOverlay.classList.add("hidden");
+    }
+
+    document.getElementById("about-license-btn")!.addEventListener("click", showLicense);
+    licenseClose.addEventListener("click", hideLicense);
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !licenseOverlay.classList.contains("hidden")) hideLicense();
+    });
+    licenseOverlay.addEventListener("click", (e) => {
+      if (e.target === licenseOverlay) hideLicense();
     });
 
     aboutOverlay.addEventListener("click", (e) => {
@@ -1639,6 +1719,9 @@ async function init() {
   } else if (listScrollTop > 0) {
     requestAnimationFrame(() => listCtrl!.setScrollOffset(listScrollTop));
   }
+
+  /* ── Startup complete: drop the black overlay ──────────── */
+  document.getElementById("startup-overlay")?.remove();
 }
 
 init();

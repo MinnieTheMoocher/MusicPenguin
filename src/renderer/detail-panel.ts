@@ -31,6 +31,27 @@ const detailInputs = document.querySelectorAll<HTMLTextAreaElement | HTMLInputEl
   "#detail-form input[type='text'], #detail-form textarea"
 );
 
+function padZeroCount(el: HTMLElement | null, varName: string): number {
+  if (!el) return 0;
+  const n = parseInt(getComputedStyle(el).getPropertyValue(varName).trim(), 10);
+  return isNaN(n) ? 0 : n;
+}
+function padWithZeros(v: string, zeros: number): string {
+  if (zeros <= 0) return v;
+  const n = parseInt(v, 10);
+  return v.trim() === "" || isNaN(n) ? v : n.toString().padStart(zeros + 1, "0");
+}
+function formatTrackNo(v: string): string {
+  return padWithZeros(v, padZeroCount(document.getElementById("field-track-no-wrap"), "--pad-track-no"));
+}
+function formatDiscNo(v: string): string {
+  return padWithZeros(v, padZeroCount(document.getElementById("field-disc-no-wrap"), "--pad-disc-no"));
+}
+function syncTrackNoBadge(): void {
+  const wrap = document.getElementById("field-track-no-wrap");
+  if (wrap) wrap.classList.toggle("has-value", trackNoInput.value.trim() !== "");
+}
+
 let detailFieldsReadOnly = false;
 
 /* Hover hint shown on every locked field while a DLNA track is shown */
@@ -99,7 +120,7 @@ function buildSearchButtons(urls: string[]): void {
   searchBtnContainer.innerHTML = "";
   for (const url of urls.slice(0, 5)) {
     const btn = document.createElement("button");
-    btn.className = "search-btn";
+    btn.className = "internet-btn";
     btn.textContent = searchLabelFromUrl(url);
     btn.title = url;
     btn.addEventListener("click", () => {
@@ -171,7 +192,7 @@ updateCoverTitle();
 document.addEventListener("language-changed", updateCoverTitle);
 
 /* One opener for click AND dblclick: events from the image and from
-   the ♫ placeholder bubble up to #cover-area alike, so theater mode
+   the music placeholder bubble up to #cover-area alike, so theater mode
    opens for tracks with and without cover art. */
 let lastOpenAttempt = 0;
 function openCoverTheater(): void {
@@ -186,6 +207,14 @@ function openCoverTheater(): void {
 }
 coverArea.addEventListener("click", openCoverTheater);
 coverArea.addEventListener("dblclick", openCoverTheater);
+
+coverArea.draggable = true;
+coverArea.addEventListener("dragstart", (e: DragEvent) => {
+  if (!currentTrackPath) { e.preventDefault(); return; }
+  const payload = [{ path: currentTrackPath, title: currentTitle, artist: currentArtist }];
+  e.dataTransfer!.setData("application/x-musicpenguin-track", JSON.stringify(payload));
+  e.dataTransfer!.effectAllowed = "copy";
+});
 
 export function showDetails(item: ListItem | null): void {
   if (item) {
@@ -202,8 +231,8 @@ export function showDetails(item: ListItem | null): void {
     titleInput.value = currentTitle;
     artistInput.value = currentArtist;
     albumInput.value = item.album ?? "";
-    trackNoInput.value = item.rawTrackNo ?? "";
-    discNoInput.value = item.discNo ?? "";
+    trackNoInput.value = formatTrackNo(item.rawTrackNo ?? "");
+    discNoInput.value = formatDiscNo(item.discNo ?? "");
     albumArtistInput.value = item.albumArtist ?? "";
     genreInput.value = item.genre ?? "";
     yearInput.value = item.year ?? "";
@@ -243,6 +272,7 @@ export function showDetails(item: ListItem | null): void {
     coverPlaceholder.style.display = "";
     currentCoverPath = null;
   }
+  syncTrackNoBadge();
 }
 
 /* ── ESC to restore & blur ───────────────────────────────── */
@@ -257,6 +287,7 @@ for (const el of detailInputs) {
     }
   });
 }
+trackNoInput.addEventListener("input", syncTrackNoBadge);
 
 /* ── Context menu for detail inputs ──────────────────────── */
 let contextMenuEl: HTMLElement | null = null;

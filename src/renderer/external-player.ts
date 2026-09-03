@@ -18,7 +18,7 @@ export function getExternalPlayerDisplayName(): string {
 export async function initExternalPlayer(): Promise<void> {
   try {
     const data = await window.electronAPI.loadSettings();
-    const name = typeof data?.externalPlayer === "string" ? data.externalPlayer.trim() : "";
+    const name = typeof data?.["external-player"] === "string" ? data["external-player"].trim() : "";
     if (name) externalPlayer = name;
   } catch { /* ignore */ }
 }
@@ -33,6 +33,6 @@ export async function checkExternalPlayerCommand(name: string): Promise<boolean>
 export async function saveExternalPlayer(name: string): Promise<void> {
   externalPlayer = name;
   try {
-    await window.electronAPI.saveSettings({ externalPlayer: name });
+    await window.electronAPI.saveSettings({ "external-player": name });
   } catch { /* ignore */ }
 }
