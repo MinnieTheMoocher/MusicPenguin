@@ -311,7 +311,7 @@ write).
 | `db:scanSpecificFiles`             | invoke    | Tag-read only the given file list (e.g. right-click "Rescan Tags"); runs the ffprobe duration fixup pass afterwards
 | `db:getCoverArt`                   | invoke    | Local files: read cover from embedded metadata or folder image → data URL. Optional `maxSize` param resizes via `nativeImage` before returning. DLNA rows (http(s) path): GET the stored `track_art_url` from the server → data URL
 | `db:getCoverArtGroups`             | invoke    | Track's cover art in 3 disjunct groups (front / rearCovers / extraImages) → data URLs; DLNA rows return the fetched art as `front` only
-| `db:getProblematicFiles`           | invoke    | List files with `tags_error = 1`, write to `/tmp/musicpenguin_problematic_files.txt`, attempt to open in text editor (xdg-open → code → codium → desktop-specific fallback: kate on KDE, gedit on GNOME)
+| `db:getProblematicFiles`           | invoke    | List files with `tags_error = 1`, write to the OS temporary directory as `musicpenguin_problematic_files.txt`, then open it with Electron `shell.openPath()` in the system's default application
 | `db:getProblematicFileCount`       | invoke    | Return the count of files with `tags_error = 1`
 | `db:clearDatabase`                 | invoke    | Stop tag reader, DELETE all rows, save DB, then emit `library:changed` so the renderer reloads the empty library
 | `db:deleteFiles`                   | invoke    | DELETE rows for given paths from the database
@@ -1221,9 +1221,10 @@ to settings.
   `file://` is allowed by default.
 * **Empty fields**: Missing artist/album/etc. show as empty string `""`, never as a placeholder
   character like `"—"`.
-* **Problematic files**: Exported to `/tmp/musicpenguin_problematic_files.txt` and auto-opened in
-  the system's default text editor (via `xdg-open`). Falls back to `code`/`codium`, then
-  desktop-specific editors (`kate` on KDE, `gedit` on GNOME).
+* **Problematic files**: Exported to the OS temporary directory as
+  `musicpenguin_problematic_files.txt` and opened through Electron's platform-neutral
+  `shell.openPath()` API. This delegates to the system's default application for text files
+  and avoids requiring `xdg-open`, VS Code, Kate, Gedit, or another desktop-specific editor.
 * **External file manager**: The "show in folder" action uses Electron's platform-neutral
   shell integration: `shell.showItemInFolder()` for files (selecting them when supported) and
   `shell.openPath()` for folders. This avoids requiring or detecting `xdg-open`, Dolphin,

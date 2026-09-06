@@ -781,37 +781,18 @@ ipcMain.handle("db:getProblematicFiles", async () => {
     return { count: 0, path: "", opened: false };
   }
 
-  const outPath = "/tmp/musicpenguin_problematic_files.txt";
+  const outPath = path.join(os.tmpdir(), "musicpenguin_problematic_files.txt");
   const lines = paths.map((p) => String(p.path ?? "")).join("\n");
   fs.writeFileSync(outPath, lines + "\n");
 
-  const desktop = (process.env.XDG_CURRENT_DESKTOP || "").toLowerCase();
-
-  async function tryEditor(name: string, args: string[]): Promise<boolean> {
-    try {
-      const proc = spawn(name, args, { detached: true, stdio: "ignore" });
-      proc.unref();
-      return await new Promise<boolean>((resolve) => {
-        proc.on("error", () => resolve(false));
-        proc.on("spawn", () => resolve(true));
-      });
-    } catch {
-      return false;
-    }
-  }
-
   let opened = false;
-
-  // Try the OS default editor first
-  if (commandExists("xdg-open")) opened = await tryEditor("xdg-open", [outPath]);
-
-  // Then try well-known GUI editors
-  if (!opened && commandExists("code"))    opened = await tryEditor("code", [outPath]);
-  if (!opened && commandExists("codium"))  opened = await tryEditor("codium", [outPath]);
-
-  // KDE/GNOME fallbacks
-  if (!opened && desktop.includes("kde")  && commandExists("kate"))  opened = await tryEditor("kate", [outPath]);
-  if (!opened && desktop.includes("gnome") && commandExists("gedit")) opened = await tryEditor("gedit", [outPath]);
+  try {
+    /* Open the generated text file with the OS default application. */
+    const error = await shell.openPath(outPath);
+    opened = error === "";
+  } catch {
+    opened = false;
+  }
 
   if (!opened) {
     dialog.showErrorBox(t("Error"), t("Could not open text editor. File saved at:\n$1", outPath));
