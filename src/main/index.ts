@@ -760,15 +760,23 @@ ipcMain.handle("db:scanSpecificFiles", async (_event, files: ScannedFileInfo[]) 
 });
 
 /* db:getProblematicFileCount */
+/* Temporary local test hook: set MUSICPENGUIN_TEST_PROBLEMATIC=1 to expose
+   the problematic-files UI even when the current database has no errors. */
+const FORCE_PROBLEMATIC_TEST = process.env.MUSICPENGUIN_TEST_PROBLEMATIC === "1";
+
 ipcMain.handle("db:getProblematicFileCount", async () => {
   await dbReady;
-  return countProblematicFiles(db!);
+  const count = countProblematicFiles(db!);
+  return FORCE_PROBLEMATIC_TEST ? Math.max(1, count) : count;
 });
 
 /* db:getProblematicFiles */
 ipcMain.handle("db:getProblematicFiles", async () => {
   await dbReady;
-  const paths = getProblematicFiles(db!);
+  const actualPaths = getProblematicFiles(db!);
+  const paths = actualPaths.length > 0 || !FORCE_PROBLEMATIC_TEST
+    ? actualPaths
+    : [{ path: path.join(os.tmpdir(), "musicpenguin-test-problematic.mp3") }];
   if (paths.length === 0) {
     return { count: 0, path: "", opened: false };
   }
