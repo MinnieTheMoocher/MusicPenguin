@@ -123,8 +123,8 @@ export async function initSettings(): Promise<void> {
   }
 
   function defaultDesignId(): string {
-    if (savedDesign === SYSTEM_DESIGN_ID) return SYSTEM_DESIGN_ID;
-    if (designHrefs.has(savedDesign)) return savedDesign;
+    if (selectedDesignId === SYSTEM_DESIGN_ID) return SYSTEM_DESIGN_ID;
+    if (designHrefs.has(selectedDesignId)) return selectedDesignId;
     const href = decodeStartupDesignHref();
     if (href) {
       for (const d of [...designLists.builtin, ...designLists.custom]) {
@@ -149,11 +149,20 @@ export async function initSettings(): Promise<void> {
     }
   }
 
-  const savedDesign = await loadSavedDesignId();
+  let selectedDesignId = await loadSavedDesignId();
   await refreshDesigns();
-  if (designHrefs.has(savedDesign)) {
-    applyDesign(savedDesign);
+  if (designHrefs.has(selectedDesignId)) {
+    applyDesign(selectedDesignId);
   }
+
+  const systemThemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
+  const applyCurrentSystemDesign = (animate = true): void => {
+    const currentSystemDesign = systemThemeQuery.matches ? "dark_gray" : "white";
+    applyDesign(currentSystemDesign, animate);
+  };
+  systemThemeQuery.addEventListener("change", () => {
+    if (selectedDesignId === SYSTEM_DESIGN_ID) applyCurrentSystemDesign();
+  });
   document.addEventListener("language-changed", fillDesignOptions);
 
   for (const lang of Object.values(LANGUAGES).sort((a, b) => a.label.localeCompare(b.label))) {
@@ -314,12 +323,9 @@ export async function initSettings(): Promise<void> {
   designSelect.addEventListener("change", () => {
     const id = designSelect.value;
     if (!id) return;
+    selectedDesignId = id;
     if (id === SYSTEM_DESIGN_ID) {
-      /* Live OS theme events are intentionally deferred. Apply the current
-         system value once so selecting System has an immediate effect. */
-      const currentSystemDesign = window.matchMedia("(prefers-color-scheme: dark)").matches
-        ? "dark_gray" : "white";
-      applyDesign(currentSystemDesign, true);
+      applyCurrentSystemDesign();
     } else {
       applyDesign(id, true);
     }

@@ -6,7 +6,7 @@ export const DEFAULT_SEARCH_URLS = [
   "https://portal.dnb.de/opac/simpleSearch?query=${artist}+${title}"
 ];
 
-/* Special persisted design choice: follow the operating system at startup.
+/* Special persisted design choice: follow the operating system color scheme.
    It is intentionally not a discovered stylesheet id. */
 export const SYSTEM_DESIGN_ID = "system";
 

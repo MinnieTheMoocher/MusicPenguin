@@ -545,8 +545,9 @@ handlers route http(s) paths there instead of the local-file logic.
 The saved setting is read once here; the special `system` choice and a missing setting use Electron's cross-platform
 `nativeTheme.shouldUseDarkColors` API. A dark system scheme maps to **Dark Gray**, a light system scheme to
 **White**. This keeps the initial design selection independent of KDE-, GNOME-, GTK- or D-Bus-specific settings
-files and also covers macOS and Windows. Live changes to the system color scheme are intentionally not handled here
-yet; the initial value is read once during startup.
+files and also covers macOS and Windows. Live changes are handled in the renderer through the corresponding
+`prefers-color-scheme` media query, but only while the persisted choice is `system`; an explicitly selected design
+never changes automatically.
 
 ### `src/main/types.ts`
 
