@@ -28,6 +28,7 @@ import type { SqlJsDatabase, ScannedFileInfo } from "./types";
 
 import { DEFAULT_SEARCH_URLS, MAX_PROBE_FILE_SIZE } from "../common/config";
 import { initMpris, updateMprisState } from "./mpris";
+import { IS_LINUX } from "./platform";
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 const APP_ICON = path.join(PROJECT_ROOT, "src", "renderer", "musicpenguin256.png");
@@ -1096,12 +1097,14 @@ export async function start() {
   void runStartupDlnaDiscovery();
 
   /* ── MPRIS (Linux D-Bus media key integration) ─────────────── */
-  try {
-    initMpris((action: string) => {
-      debugLog("[MPRIS]", action);
-      mainWindow?.webContents.send("media-key", action);
-    });
-  } catch (e) {
-    console.error("[MPRIS] initMpris failed:", e);
+  if (IS_LINUX) {
+    try {
+      initMpris((action: string) => {
+        debugLog("[MPRIS]", action);
+        mainWindow?.webContents.send("media-key", action);
+      });
+    } catch (e) {
+      console.error("[MPRIS] initMpris failed:", e);
+    }
   }
 }
