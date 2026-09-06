@@ -918,17 +918,16 @@ ipcMain.handle("db:moveFile", async (_event, oldPath: string, newPath: string) =
   return { ok: true, oldPath, newPath, newFilename };
 });
 
-/* shell:openExternal */
+/* shell:openExternal
+   Delegate URL handling to the operating system's default browser through
+   Electron. This avoids requiring a browser executable such as `firefox`
+   to be present on PATH and works across Linux, macOS and Windows. */
 ipcMain.handle("shell:openExternal", async (_event, url: string) => {
-  let browser = "firefox";
   try {
-    const raw = fs.readFileSync(SETTINGS_PATH, "utf-8");
-    const saved = JSON.parse(raw);
-    if (saved.browser) browser = saved.browser;
-  } catch { /* use default */ }
-  try {
-    spawn(browser, [url], { detached: true, stdio: "ignore" }).unref();
-  } catch { /* ignore */ }
+    await shell.openExternal(url);
+  } catch (err) {
+    console.error("[shell] openExternal failed:", err);
+  }
 });
 
 /* shell:openInExternalPlayer */

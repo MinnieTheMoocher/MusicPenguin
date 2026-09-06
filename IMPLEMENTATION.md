@@ -263,7 +263,6 @@ write).
   "search-regex": false,
   "search-tag-columns": { "search-tag-title": true, ... },
   "search-urls": ["https://www.discogs.com/search?...&title=${title}&artist=${artist}", ...],
-  "browser": "firefox",
   "external-player": "vlc",
   "min-autoplay-rating": null | 0.5 | 1 | 1.5 | 2 | 2.5 | 3 | 3.5 | 4 | 4.5 | 5,
   "sort-manual": false,
@@ -322,7 +321,7 @@ write).
 | `db:moveFile`                      | invoke    | Rename file on disk and UPDATE path/filename in DB
 | `db:incrementPlaycount`            | invoke    | Increment play count for a file, return new count
 | `shell:showInExternalFileExplorer` | invoke    | Show a file in the platform's default file manager via Electron `shell.showItemInFolder()` (select when supported), or open a folder via `shell.openPath()`; avoids desktop-specific `xdg-open`/Dolphin/Nautilus detection
-| `shell:openExternal`               | invoke    | Open URL in configured browser (default: firefox)
+| `shell:openExternal`               | invoke    | Open URL in the operating system's default browser via Electron `shell.openExternal()`
 | `shell:openInExternalPlayer`       | invoke    | Open file(s) in the configured external player (default `vlc`); counts one play per file
 | `shell:isExternalPlayerAvailable`  | invoke    | Return whether the configured external player command exists
 | `shell:checkCommand`               | invoke    | Return whether a command name/path is executable (`command -v`)
@@ -1231,6 +1230,9 @@ to settings.
   Nautilus, or another particular Linux desktop and also works with Finder on macOS and
   Explorer on Windows. File selection remains dependent on the capabilities of the native
   file manager.
+* **External links**: Links use Electron's platform-neutral `shell.openExternal()` API and
+  therefore open in the operating system's default browser. No browser executable such as
+  Firefox needs to be installed on `PATH`; the old `browser` setting is no longer used.
 
 ## Media Keys
 
