@@ -92,6 +92,7 @@ export const frFR: ITranslate = {
     // Context menus
     "Show in Folder": "Afficher dans le dossier",
     "Open with Default Application": "Ouvrir avec l'application par défaut",
+    "Could not open external player:\n$1": "Impossible d'ouvrir le lecteur externe :\n$1",
     "Play in $1": "Lire avec $1",
     "Copy Path": "Copier le chemin",
     "Rescan Tags": "Analyser à nouveau les tags",

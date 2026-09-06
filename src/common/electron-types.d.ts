@@ -109,7 +109,7 @@ interface ElectronAPI {
   showInExternalFileExplorer: (filePath: string, isFolder: boolean) => Promise<void>;
   openWithDefaultApplication: (filePaths: string | string[]) => Promise<string[]>;
   openExternal: (url: string) => Promise<void>;
-  openInExternalPlayer: (filePaths: string | string[], player?: string) => Promise<boolean>;
+  openInExternalPlayer: (filePaths: string | string[], player?: string) => Promise<{ ok: boolean; error?: string }>;
   isExternalPlayerAvailable: (player?: string) => Promise<boolean>;
   checkCommand: (command: string) => Promise<boolean>;
   moveFile: (oldPath: string, newPath: string) => Promise<{ ok: boolean; error?: string; oldPath?: string; newPath?: string; newFilename?: string }>;

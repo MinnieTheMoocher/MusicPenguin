@@ -1330,8 +1330,12 @@ export function initPlaylist(
           }
         }
         audio.pause();
-        const opened = await window.electronAPI.openInExternalPlayer(toPlay, getExternalPlayer());
-        if (opened) noteExternalPlays(toPlay);
+        const result = await window.electronAPI.openInExternalPlayer(toPlay, getExternalPlayer());
+        if (result.ok) {
+          noteExternalPlays(toPlay);
+        } else {
+          alert(t("Could not open external player:\n$1", result.error ?? ""));
+        }
       });
       menu.appendChild(vlcItem);
 

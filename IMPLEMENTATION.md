@@ -325,8 +325,8 @@ write).
 | `shell:showInExternalFileExplorer` | invoke    | Show a file in the platform's default file manager via Electron `shell.showItemInFolder()` (select when supported), or open a folder via `shell.openPath()`; avoids desktop-specific `xdg-open`/Dolphin/Nautilus detection
 | `shell:openWithDefaultApplication` | invoke    | Open local file(s) with the operating system's associated application via Electron `shell.openPath()`; returns the successfully opened paths and increments their play counts
 | `shell:openExternal`               | invoke    | Open URL in the operating system's default browser via Electron `shell.openExternal()`
-| `shell:openInExternalPlayer`       | invoke    | Open file(s) in the configured external player (default `vlc`); counts one play per file
-| `shell:isExternalPlayerAvailable`  | invoke    | Return whether the configured external player command exists
+| `shell:openInExternalPlayer`       | invoke    | Open file(s) in the configured external player (default `vlc`); supports executable commands/paths and macOS `.app` bundles, counts one play per file, returns `{ ok, error? }`
+| `shell:isExternalPlayerAvailable`  | invoke    | Return whether the configured external player is available as an executable or, on macOS, an installed application
 | `shell:checkCommand`               | invoke    | Return whether a command name/path is executable (`command -v`)
 | `app:getVersion`                   | invoke    | Return app version string
 | `app:getPlayableExtensions`        | invoke    | Return list of built-in playable file extensions
@@ -649,8 +649,11 @@ Configurable external player used as a fallback for formats Chromium cannot deco
 (e.g. MPEG Layer II) or via the context-menu "Play in …" action. `getExternalPlayer()` returns
 the persisted command (default `vlc`); `getExternalPlayerDisplayName()` derives the short label
 (last path segment without extension). `initExternalPlayer()` loads the `external-player`
-setting; `checkExternalPlayerCommand(name)` tests executability via the `shell:checkCommand` IPC;
+setting; `checkExternalPlayerCommand(name)` tests availability via the `shell:isExternalPlayerAvailable` IPC;
 `saveExternalPlayer(name)` persists the kebab-case `external-player` key.
+On macOS, a configured executable path is launched directly; a bare application name such as
+`vlc` is resolved as an installed `.app` bundle and opened through the native `open -a` command.
+Launch failures return an error to the renderer instead of failing silently.
 
 ### `src/renderer/min-autoplay-rating.ts`
 

@@ -820,8 +820,12 @@ function setupDelegation(): void {
         for (const p of paths) selPaths.add(p);
         populate();
         audio.pause();
-        const opened = await window.electronAPI.openInExternalPlayer(paths, getExternalPlayer());
-        if (opened) noteExternalPlays(paths);
+        const result = await window.electronAPI.openInExternalPlayer(paths, getExternalPlayer());
+        if (result.ok) {
+          noteExternalPlays(paths);
+        } else {
+          alert(t("Could not open external player:\n$1", result.error ?? ""));
+        }
       });
       menu.appendChild(vlcItem);
 

@@ -107,8 +107,8 @@ export async function handleAudioPlaybackError(filePath: string | null): Promise
       const player = getExternalPlayer();
       const playerAvailable = await window.electronAPI.isExternalPlayerAvailable(player);
       if (playerAvailable) {
-        const opened = await window.electronAPI.openInExternalPlayer(filePath, player);
-        if (opened) noteExternalPlays([filePath]);
+        const result = await window.electronAPI.openInExternalPlayer(filePath, player);
+        if (result.ok) noteExternalPlays([filePath]);
         return;
       }
     }
@@ -130,8 +130,8 @@ export async function handleAudioPlaybackError(filePath: string | null): Promise
       buttons,
     });
     if (playerAvailable && clicked === 0) {
-      const opened = await window.electronAPI.openInExternalPlayer(filePath, player);
-      if (opened) noteExternalPlays([filePath]);
+      const result = await window.electronAPI.openInExternalPlayer(filePath, player);
+      if (result.ok) noteExternalPlays([filePath]);
     }
   } finally {
     handlingSource = null;

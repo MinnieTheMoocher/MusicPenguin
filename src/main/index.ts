@@ -22,13 +22,13 @@ import { getCoverArt, getCoverArtGroups, fetchDlnaCoverArt, resizeToThumbnail } 
 import { getTrackArtUrls, setTrackArtUrls } from "./database";
 import { walkDirectory, commandExists, jsonStringify, isExecutableCommand } from "./utils";
 import { PLAYABLE_FILE_EXTENSIONS } from "../common/config";
-import { spawn } from "child_process";
+import { execFileSync, spawn } from "child_process";
 
 import type { SqlJsDatabase, ScannedFileInfo } from "./types";
 
 import { DEFAULT_SEARCH_URLS, MAX_PROBE_FILE_SIZE } from "../common/config";
 import { initMpris, updateMprisState } from "./mpris";
-import { IS_LINUX } from "./platform";
+import { IS_LINUX, IS_MACOS } from "./platform";
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 const APP_ICON = path.join(PROJECT_ROOT, "src", "renderer", "musicpenguin256.png");
@@ -920,22 +920,125 @@ ipcMain.handle("shell:openExternal", async (_event, url: string) => {
 });
 
 /* shell:openInExternalPlayer */
+interface ExternalPlayerResult {
+  ok: boolean;
+  error?: string;
+}
+
+/** Resolve a macOS application name or .app bundle without requiring a CLI
+ * executable to be present on PATH. Direct executable paths are handled by
+ * isExecutableCommand() before this resolver is called. */
+function findMacApplication(player: string): string | null {
+  if (!IS_MACOS) return null;
+  const trimmed = player.trim();
+  if (!trimmed) return null;
+
+  if (/\.app$/i.test(trimmed) && fs.existsSync(trimmed)) return trimmed;
+
+  const appName = path.basename(trimmed).replace(/\.app$/i, "");
+  if (!appName || appName.includes("/")) return null;
+
+  for (const root of ["/Applications", path.join(os.homedir(), "Applications")]) {
+    const candidate = path.join(root, `${appName}.app`);
+    if (fs.existsSync(candidate)) return candidate;
+  }
+
+  /* Spotlight also finds applications installed outside the conventional
+     Applications folders. The literal is escaped before it becomes part of
+     the mdfind query. */
+  try {
+    const escaped = appName.replace(/\\/g, "\\\\").replace(/'/g, "\\\\'");
+    const result = execFileSync("mdfind", [`kMDItemFSName == '${escaped}.app'c`], {
+      encoding: "utf8",
+      timeout: 1500,
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    const found = result.split(/\r?\n/).map((entry) => entry.trim()).find(Boolean);
+    if (found && fs.existsSync(found)) return found;
+  } catch { /* Spotlight unavailable or no matching application */ }
+
+  return null;
+}
+
+function spawnExternalPlayerCommand(command: string, files: string[]): Promise<ExternalPlayerResult> {
+  return new Promise((resolve) => {
+    try {
+      const proc = spawn(command, files, { detached: true, stdio: "ignore" });
+      proc.once("error", (err) => resolve({ ok: false, error: err.message }));
+      proc.once("spawn", () => {
+        proc.unref();
+        resolve({ ok: true });
+      });
+    } catch (err) {
+      resolve({ ok: false, error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+}
+
+function openMacApplication(appPath: string, files: string[]): Promise<ExternalPlayerResult> {
+  return new Promise((resolve) => {
+    let stderr = "";
+    try {
+      const proc = spawn("/usr/bin/open", ["-a", appPath, ...files], {
+        detached: true,
+        stdio: ["ignore", "ignore", "pipe"],
+      });
+      proc.stderr?.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
+      proc.once("error", (err) => resolve({ ok: false, error: err.message }));
+      proc.once("close", (code) => {
+        if (code === 0) {
+          resolve({ ok: true });
+        } else {
+          resolve({ ok: false, error: stderr.trim() || `open exited with code ${code ?? "unknown"}` });
+        }
+      });
+    } catch (err) {
+      resolve({ ok: false, error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+}
+
+async function launchExternalPlayer(player: string, files: string[]): Promise<ExternalPlayerResult> {
+  const trimmed = player.trim();
+  if (!trimmed) return { ok: false, error: "No external player configured." };
+
+  if (isExecutableCommand(trimmed)) {
+    return spawnExternalPlayerCommand(trimmed, files);
+  }
+
+  const appPath = findMacApplication(trimmed);
+  if (appPath) {
+    return openMacApplication(appPath, files);
+  }
+
+  return {
+    ok: false,
+    error: IS_MACOS
+      ? `External player not found as a command or macOS application: ${trimmed}`
+      : `External player command not found: ${trimmed}`,
+  };
+}
+
+function isExternalPlayerAvailable(player: string): boolean {
+  const trimmed = player.trim();
+  return trimmed.length > 0 && (isExecutableCommand(trimmed) || findMacApplication(trimmed) !== null);
+}
+
 ipcMain.handle("shell:openInExternalPlayer", async (_event, filePaths: string | string[], player?: string) => {
   const exe = (player ?? "").trim() || "vlc";
-  if (!isExecutableCommand(exe)) return false;
   const files = Array.isArray(filePaths) ? filePaths : [filePaths];
-  try {
-    spawn(exe, files, { detached: true, stdio: "ignore" }).unref();
+  const result = await launchExternalPlayer(exe, files);
+  if (result.ok) {
     // playing a file in an external player counts as a play
     await dbReady;
     for (const f of files) incrementPlaycount(db!, f);
-    return true;
-  } catch { return false; }
+  }
+  return result;
 });
 
 /* shell:isExternalPlayerAvailable */
 ipcMain.handle("shell:isExternalPlayerAvailable", (_event, player?: string) => {
-  return isExecutableCommand((player ?? "").trim() || "vlc");
+  return isExternalPlayerAvailable((player ?? "").trim() || "vlc");
 });
 
 /* shell:checkCommand */

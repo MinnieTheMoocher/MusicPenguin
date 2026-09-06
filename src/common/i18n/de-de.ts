@@ -94,6 +94,7 @@ export const deDE: ITranslate = {
     // Context menus
     "Show in Folder": "Im Ordner anzeigen",
     "Open with Default Application": "Mit Standardanwendung öffnen",
+    "Could not open external player:\n$1": "Externer Player konnte nicht geöffnet werden:\n$1",
     "Play in $1": "In $1 abspielen",
     "Copy Path": "Pfad kopieren",
     "Rescan Tags": "Tags erneut lesen",
