@@ -539,28 +539,13 @@ handlers route http(s) paths there instead of the local-file logic.
 - a saved design setting (any id discovered at runtime — built-in or custom), i.e. "unless the user decided
   otherwise"; a saved id that is **not** found at runtime is ignored and the flow continues exactly as on first run;
 - default by desktop color scheme: a dark desktop scheme maps to the **Dark Gray** design, a light desktop
-  scheme to the **White** design
-- otherwise the default is `dark_gray`.
+  scheme to the **White** design, using Electron's cross-platform `nativeTheme.shouldUseDarkColors` API.
 
-The saved setting is read once here; the desktop scheme is then provided by registered provider modules, each
-guarding on its own environment and returning `null` when not applicable:
-
-- `src/main/desktop-kde.ts` — `detectKdeDesktopScheme()` for KDE/Plasma: guards on `XDG_CURRENT_DESKTOP` containing
-  "KDE", then parses `kdeglobals` / `kdedefaults/kdeglobals`: a `ColorScheme` name that says dark/light, else the
-  last resort — `BackgroundNormal`/`ForegroundNormal` luminance (brighter text than background → dark mode).
-- `src/main/desktop-gnome.ts` — `detectGnomeDesktopScheme()` for GNOME (incl. Ubuntu's GNOME shell / Unity): guards on
-  `XDG_CURRENT_DESKTOP` containing "GNOME"/"Unity", then queries user settings via
-  `gsettings get org.gnome.desktop.interface color-scheme` (GNOME 42+ `prefer-dark`/`prefer-light`), falling back to
-  the `gtk-theme` key and finally to `gtk-theme-name` in `~/.config/gtk-{3.0,4.0}/settings.ini`. A theme name that
-  explicitly says dark/light determines the scheme; the last resort probes the configured default text (foreground)
-  and background colors — `gtk-color-scheme` `fg_color`/`bg_color` from the user's or the theme's settings.ini,
-  else `@define-color theme_fg_color`/`theme_bg_color` from the theme's gtk.css — and compares their brightness
-  (brighter text than background → dark mode).
-
-`src/main/color.ts` provides the shared WCAG relative-luminance helpers (`luminanceRgb`, `luminanceHex`) used by the
-brightness comparison. Both providers return only an explicit determination; when the user's choice cannot be
-determined, the provider returns `null` and the dispatcher falls back to the **Dark Gray** default design — a light
-desktop scheme is only used (White design) when the user actually chose a light scheme.
+The saved setting is read once here; otherwise the desktop scheme comes from Electron's cross-platform
+`nativeTheme.shouldUseDarkColors` API. A dark system scheme maps to **Dark Gray**, a light system scheme to
+**White**. This keeps the initial design selection independent of KDE-, GNOME-, GTK- or D-Bus-specific settings
+files and also covers macOS and Windows. Live changes to the system color scheme are intentionally not handled here
+yet; the initial value is read once during startup.
 
 ### `src/main/types.ts`
 
@@ -1294,12 +1279,10 @@ design sharing a built-in folder name shadows the built-in. The initial design i
 
 1. Saved `design` in musicpenguin-settings.json — validated against the discovered ids. A saved id that is **not
    found** is ignored and detection continues exactly as on first run.
-2. Default by desktop color scheme: only an explicitly determined scheme maps to a design — dark desktop
-   scheme → **Dark Gray** design, light desktop scheme → **White**. Detected per desktop: KDE parses
-   `~/.config/kdeglobals` / `kdedefaults/kdeglobals` (`ColorScheme` name or background/foreground luminance);
-   GNOME queries `gsettings` (`color-scheme` / `gtk-theme`) and falls back to `~/.config/gtk-{3.0,4.0}/settings.ini`,
-   probing the configured text/background colors for brightness as a last resort. When the user's choice cannot be
-   determined the step yields no scheme.
+2. Default by desktop color scheme: Electron's cross-platform
+   `nativeTheme.shouldUseDarkColors` maps a dark system scheme to the **Dark Gray** design and a light system
+   scheme to the **White** design. The value is read once during startup; live system theme changes are not handled
+   yet.
 3. Default: dark_gray
 
 The chosen design's **stylesheet href** (not the id) is base64-encoded and passed as `?design=` when loading
