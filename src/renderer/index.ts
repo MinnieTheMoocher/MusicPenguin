@@ -1649,14 +1649,14 @@ async function init() {
   });
 
   /* ── Problematic files button ──────────────────────────── */
-  const problematicBtn = document.getElementById("problematic-btn")!;
+  const problematicBtn = document.getElementById("problematic-btn") as HTMLButtonElement;
 
   async function refreshProblematicBtn() {
     try {
       const count = await window.electronAPI.getProblematicFileCount();
-      problematicBtn.hidden = count < 1;
+      problematicBtn.disabled = count < 1;
     } catch {
-      problematicBtn.hidden = true;
+      problematicBtn.disabled = true;
     }
   }
 

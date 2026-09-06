@@ -135,7 +135,9 @@ and invisible (handle-only, no visible knob) cross-handle drag areas at both int
 
 The bottom of the groups panel has four icon buttons:
 **Folders** (opens the folder manager), **Scan** (re-scans all folders), **Problematic** (lists
-files with tag errors), and **Settings** (dark mode toggle).
+files with tag errors), and **Settings** (dark mode toggle). The Problematic button is always
+visible to keep the toolbar layout stable, but remains disabled when the library has no tag
+errors; it is enabled after a scan finds at least one problematic file.
 
 The logo and bottom button row are fixed in place: the group list lives in `#groups-container`,
 which is `flex: 1` with `min-height: 0` and `overflow-y: auto`, so when the groups outgrow the
