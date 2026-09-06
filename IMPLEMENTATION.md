@@ -321,7 +321,7 @@ write).
 | `db:fillDuration`                  | invoke    | Layer-3 duration gap filler: persist a duration learned at play time from the `<audio>` element; only fills `duration IS NULL` gaps, resolves whether the DB changed
 | `db:moveFile`                      | invoke    | Rename file on disk and UPDATE path/filename in DB
 | `db:incrementPlaycount`            | invoke    | Increment play count for a file, return new count
-| `shell:showInExternalFileExplorer` | invoke    | Open system file manager and select the given file (xdg-open → dolphin → nautilus)
+| `shell:showInExternalFileExplorer` | invoke    | Show a file in the platform's default file manager via Electron `shell.showItemInFolder()` (select when supported), or open a folder via `shell.openPath()`; avoids desktop-specific `xdg-open`/Dolphin/Nautilus detection
 | `shell:openExternal`               | invoke    | Open URL in configured browser (default: firefox)
 | `shell:openInExternalPlayer`       | invoke    | Open file(s) in the configured external player (default `vlc`); counts one play per file
 | `shell:isExternalPlayerAvailable`  | invoke    | Return whether the configured external player command exists
@@ -1225,6 +1225,12 @@ to settings.
 * **Problematic files**: Exported to `/tmp/musicpenguin_problematic_files.txt` and auto-opened in
   the system's default text editor (via `xdg-open`). Falls back to `code`/`codium`, then
   desktop-specific editors (`kate` on KDE, `gedit` on GNOME).
+* **External file manager**: The "show in folder" action uses Electron's platform-neutral
+  shell integration: `shell.showItemInFolder()` for files (selecting them when supported) and
+  `shell.openPath()` for folders. This avoids requiring or detecting `xdg-open`, Dolphin,
+  Nautilus, or another particular Linux desktop and also works with Finder on macOS and
+  Explorer on Windows. File selection remains dependent on the capabilities of the native
+  file manager.
 
 ## Media Keys
 

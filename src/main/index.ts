@@ -999,30 +999,19 @@ ipcMain.on("mpris:updateState", (_event, state) => {
 
 /* shell:showInExternalFileExplorer */
 ipcMain.handle("shell:showInExternalFileExplorer", async (_event, filePath: string, isFolder: boolean) => {
-  const desktop = (process.env.XDG_CURRENT_DESKTOP || "").toLowerCase();
-
-  // Try the OS default file manager first
-  if (commandExists("xdg-open")) {
-    const target = isFolder ? filePath : path.dirname(filePath);
-    spawn("xdg-open", [target], { detached: true, stdio: "ignore" }).unref();
-    return;
+  try {
+    if (isFolder) {
+      /* Open folders directly through the platform's default file manager. */
+      const error = await shell.openPath(filePath);
+      if (error) throw new Error(error);
+    } else {
+      /* Show the file and select it when the file manager supports that. */
+      shell.showItemInFolder(filePath);
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    dialog.showErrorBox(t("Error"), message || t("Could not open file manager."));
   }
-
-  // KDE fallback — dolphin supports --select for highlighting a specific file
-  if (desktop.includes("kde") && commandExists("dolphin")) {
-    const args = isFolder ? [filePath] : ["--select", filePath];
-    spawn("dolphin", args, { detached: true, stdio: "ignore" }).unref();
-    return;
-  }
-
-  // GNOME fallback — nautilus supports --select
-  if (desktop.includes("gnome") && commandExists("nautilus")) {
-    const args = isFolder ? [filePath] : ["--select", filePath];
-    spawn("nautilus", args, { detached: true, stdio: "ignore" }).unref();
-    return;
-  }
-
-  dialog.showErrorBox(t("Error"), t("Could not open file manager."));
 });
 
 /* ── App lifecycle ───────────────────────────────────────── */
