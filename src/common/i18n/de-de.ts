@@ -93,6 +93,7 @@ export const deDE: ITranslate = {
 
     // Context menus
     "Show in Folder": "Im Ordner anzeigen",
+    "Open with Default Application": "Mit Standardanwendung öffnen",
     "Play in $1": "In $1 abspielen",
     "Copy Path": "Pfad kopieren",
     "Rescan Tags": "Tags erneut lesen",

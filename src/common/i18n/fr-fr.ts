@@ -91,6 +91,7 @@ export const frFR: ITranslate = {
 
     // Context menus
     "Show in Folder": "Afficher dans le dossier",
+    "Open with Default Application": "Ouvrir avec l'application par défaut",
     "Play in $1": "Lire avec $1",
     "Copy Path": "Copier le chemin",
     "Rescan Tags": "Analyser à nouveau les tags",

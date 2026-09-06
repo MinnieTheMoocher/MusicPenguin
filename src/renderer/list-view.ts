@@ -785,6 +785,7 @@ function setupDelegation(): void {
       /* DLNA rows are stream URLs without a physical file to reveal;
          in a mixed selection fall back to the first local file. */
       const firstLocalPath = paths.find((p) => !/^https?:\/\//i.test(p));
+      const localPaths = paths.filter((p) => !/^https?:\/\//i.test(p));
       if (firstLocalPath) {
         const showItem = document.createElement("div");
         showItem.className = "context-menu-item";
@@ -794,6 +795,20 @@ function setupDelegation(): void {
           await window.electronAPI.showInExternalFileExplorer(firstLocalPath, false);
         });
         menu.appendChild(showItem);
+
+        const defaultAppItem = document.createElement("div");
+        defaultAppItem.className = "context-menu-item";
+        defaultAppItem.textContent = t("Open with Default Application");
+        defaultAppItem.addEventListener("click", async () => {
+          closeContextMenu();
+          selPaths.clear();
+          for (const p of localPaths) selPaths.add(p);
+          populate();
+          audio.pause();
+          const opened = await window.electronAPI.openWithDefaultApplication(localPaths);
+          if (opened.length > 0) noteExternalPlays(opened);
+        });
+        menu.appendChild(defaultAppItem);
       }
 
       const vlcItem = document.createElement("div");

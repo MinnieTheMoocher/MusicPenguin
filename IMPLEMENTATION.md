@@ -323,6 +323,7 @@ write).
 | `db:moveFile`                      | invoke    | Rename file on disk and UPDATE path/filename in DB
 | `db:incrementPlaycount`            | invoke    | Increment play count for a file, return new count
 | `shell:showInExternalFileExplorer` | invoke    | Show a file in the platform's default file manager via Electron `shell.showItemInFolder()` (select when supported), or open a folder via `shell.openPath()`; avoids desktop-specific `xdg-open`/Dolphin/Nautilus detection
+| `shell:openWithDefaultApplication` | invoke    | Open local file(s) with the operating system's associated application via Electron `shell.openPath()`; returns the successfully opened paths and increments their play counts
 | `shell:openExternal`               | invoke    | Open URL in the operating system's default browser via Electron `shell.openExternal()`
 | `shell:openInExternalPlayer`       | invoke    | Open file(s) in the configured external player (default `vlc`); counts one play per file
 | `shell:isExternalPlayerAvailable`  | invoke    | Return whether the configured external player command exists
@@ -752,7 +753,7 @@ to the next item in the same section, or the previous one, or falls back to "All
 CSS Grid table with resizable columns (drag handles update CSS variables → saved to settings).
 Multi-selection (Ctrl/Shift/Arrow keys), drag-to-playlist, context menu (Show in Folder — reveals
 the folder of the first local file in the selection and is omitted only when the selection holds no
-local files at all, Play
+local files at all, Open with Default Application for local files, Play
 in external player, Copy Path, Rescan Tags, Goto Album, Goto Folder, Goto Artist, Goto Composer, Sort by column). Click → `onSelect` +
 priority paths. Double-click → `onDblClick` play.
 `formatTime()` converts seconds string to `MM:SS`/`HH:MM:SS`.
@@ -1126,6 +1127,8 @@ a `navBaseIndex()`: the currently playing row when a playlist is active, otherwi
 row the user clicked in the playlist (so a MANUAL prev/next works on a merely-selected entry
 with nothing playing). `hasPlaylistNavBase()` lets `src/index.ts` decide whether idle navigation
 should target the playlist.
+The playlist context menu offers **Open with Default Application** for local files in addition to
+the configured external-player action; HTTP(S) stream entries are excluded from this action.
 Whenever new tracks are ADDED to the playlist while a MAIN-LIST track is currently
 playing and that track is part of the (resulting) playlist, `adoptPlayingTrackIntoPlaylist()`
 adopts it as the playlist's current entry: the playlist play/pause button shows the pause

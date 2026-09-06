@@ -107,6 +107,7 @@ interface ElectronAPI {
   deleteFilesFromDisk: (paths: string[]) => Promise<void>;
   setRating: (filePath: string, rating: number) => Promise<void>;
   showInExternalFileExplorer: (filePath: string, isFolder: boolean) => Promise<void>;
+  openWithDefaultApplication: (filePaths: string | string[]) => Promise<string[]>;
   openExternal: (url: string) => Promise<void>;
   openInExternalPlayer: (filePaths: string | string[], player?: string) => Promise<boolean>;
   isExternalPlayerAvailable: (player?: string) => Promise<boolean>;

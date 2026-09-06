@@ -33,6 +33,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getVersion: () => ipcRenderer.invoke("app:getVersion"),
   getPlayableExtensions: () => ipcRenderer.invoke("app:getPlayableExtensions"),
   showInExternalFileExplorer: (filePath, isFolder) => ipcRenderer.invoke("shell:showInExternalFileExplorer", filePath, isFolder),
+  openWithDefaultApplication: (filePaths) => ipcRenderer.invoke("shell:openWithDefaultApplication", filePaths),
   openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url),
   openInExternalPlayer: (filePaths, player) => ipcRenderer.invoke("shell:openInExternalPlayer", filePaths, player),
   isExternalPlayerAvailable: (player) => ipcRenderer.invoke("shell:isExternalPlayerAvailable", player),

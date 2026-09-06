@@ -1002,6 +1002,38 @@ ipcMain.handle("shell:showInExternalFileExplorer", async (_event, filePath: stri
   }
 });
 
+/* shell:openWithDefaultApplication
+   Open local files with the operating system's associated application.
+   HTTP(S) stream URLs are intentionally ignored because shell.openPath()
+   is for filesystem paths; the renderer only offers this action for local
+   files. Returns the subset that was opened successfully. */
+ipcMain.handle("shell:openWithDefaultApplication", async (_event, filePaths: string | string[]) => {
+  const candidates = Array.isArray(filePaths) ? filePaths : [filePaths];
+  const localFiles = candidates.filter(
+    (filePath): filePath is string => typeof filePath === "string" && filePath.length > 0 && !isStreamUrl(filePath),
+  );
+  const opened: string[] = [];
+
+  for (const filePath of localFiles) {
+    try {
+      const error = await shell.openPath(filePath);
+      if (error === "") {
+        opened.push(filePath);
+      } else {
+        console.error("[shell] openWithDefaultApplication failed:", filePath, error);
+      }
+    } catch (err) {
+      console.error("[shell] openWithDefaultApplication failed:", filePath, err);
+    }
+  }
+
+  if (opened.length > 0) {
+    await dbReady;
+    for (const filePath of opened) incrementPlaycount(db!, filePath);
+  }
+  return opened;
+});
+
 /* ── App lifecycle ───────────────────────────────────────── */
 
 app.on("before-quit", () => {
