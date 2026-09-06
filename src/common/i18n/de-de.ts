@@ -113,6 +113,8 @@ export const deDE: ITranslate = {
 
     // Settings
     "Design": "Design",
+    "System": "System (automatisch)",
+    "Follow the operating system color scheme at startup": "Betriebssystem-Farbschema beim Start verwenden",
     "Dark Gray": "Dunkelgrau",
     "White": "Weiß",
     "Blue": "Blau",

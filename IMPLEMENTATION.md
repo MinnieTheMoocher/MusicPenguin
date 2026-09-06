@@ -536,12 +536,13 @@ handlers route http(s) paths there instead of the local-file logic.
 ### `src/main/desktop.ts`
 
 `detectInitialDesign(settingsPath, knownDesignIds)` — initial design precedence:
-- a saved design setting (any id discovered at runtime — built-in or custom), i.e. "unless the user decided
-  otherwise"; a saved id that is **not** found at runtime is ignored and the flow continues exactly as on first run;
+- a saved design setting (any id discovered at runtime — built-in or custom), or the special `system` choice meaning
+  "follow the operating system at startup"; a saved id that is **not** found at runtime is ignored and the flow
+  continues exactly as on first run;
 - default by desktop color scheme: a dark desktop scheme maps to the **Dark Gray** design, a light desktop
   scheme to the **White** design, using Electron's cross-platform `nativeTheme.shouldUseDarkColors` API.
 
-The saved setting is read once here; otherwise the desktop scheme comes from Electron's cross-platform
+The saved setting is read once here; the special `system` choice and a missing setting use Electron's cross-platform
 `nativeTheme.shouldUseDarkColors` API. A dark system scheme maps to **Dark Gray**, a light system scheme to
 **White**. This keeps the initial design selection independent of KDE-, GNOME-, GTK- or D-Bus-specific settings
 files and also covers macOS and Windows. Live changes to the system color scheme are intentionally not handled here

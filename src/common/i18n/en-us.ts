@@ -12,5 +12,6 @@ export const enUS: ITranslate = {
   messages: {
     // the following entries are intentional overrides where the key is GOOD but we want a DIFFERENT English text in the UI
     "Search on $1": "Search $1",
+    "System": "System (automatic)",
   },
 };

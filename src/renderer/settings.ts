@@ -1,4 +1,5 @@
 import { getLanguage, setLanguage, t, LANGUAGES } from "../common/i18n/index.js";
+import { SYSTEM_DESIGN_ID } from "../common/config.js";
 import { initDebugLog } from "./debug-log.js";
 import { getExternalPlayer, checkExternalPlayerCommand, saveExternalPlayer } from "./external-player.js";
 import { getMinAutoplayRating, initMinAutoplayRating, saveMinAutoplayRating } from "./min-autoplay-rating.js";
@@ -54,7 +55,7 @@ async function loadSavedDesignId(): Promise<string> {
       return data.design;
     }
   } catch { /* ignore */ }
-  return "dark_gray";
+  return SYSTEM_DESIGN_ID;
 }
 
 async function saveDesign(id: string): Promise<void> {
@@ -84,6 +85,11 @@ export async function initSettings(): Promise<void> {
   function fillDesignOptions(): void {
     const current = designSelect.value;
     designSelect.replaceChildren();
+    const systemOpt = document.createElement("option");
+    systemOpt.value = SYSTEM_DESIGN_ID;
+    systemOpt.textContent = t("System");
+    systemOpt.title = t("Follow the operating system color scheme at startup");
+    designSelect.appendChild(systemOpt);
     for (const [label, entries] of [
       [t("Built-In"), designLists.builtin],
       [t("Custom"), designLists.custom],
@@ -100,7 +106,9 @@ export async function initSettings(): Promise<void> {
       }
       designSelect.appendChild(group);
     }
-    designSelect.value = designHrefs.has(current) && current !== "" ? current : defaultDesignId();
+    designSelect.value = current === SYSTEM_DESIGN_ID || (designHrefs.has(current) && current !== "")
+      ? current
+      : defaultDesignId();
   }
 
   async function refreshDesigns(): Promise<void> {
@@ -115,6 +123,7 @@ export async function initSettings(): Promise<void> {
   }
 
   function defaultDesignId(): string {
+    if (savedDesign === SYSTEM_DESIGN_ID) return SYSTEM_DESIGN_ID;
     if (designHrefs.has(savedDesign)) return savedDesign;
     const href = decodeStartupDesignHref();
     if (href) {
@@ -305,7 +314,15 @@ export async function initSettings(): Promise<void> {
   designSelect.addEventListener("change", () => {
     const id = designSelect.value;
     if (!id) return;
-    applyDesign(id, true);
+    if (id === SYSTEM_DESIGN_ID) {
+      /* Live OS theme events are intentionally deferred. Apply the current
+         system value once so selecting System has an immediate effect. */
+      const currentSystemDesign = window.matchMedia("(prefers-color-scheme: dark)").matches
+        ? "dark_gray" : "white";
+      applyDesign(currentSystemDesign, true);
+    } else {
+      applyDesign(id, true);
+    }
     saveDesign(id);
   });
 

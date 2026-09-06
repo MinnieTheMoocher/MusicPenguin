@@ -6,6 +6,10 @@ export const DEFAULT_SEARCH_URLS = [
   "https://portal.dnb.de/opac/simpleSearch?query=${artist}+${title}"
 ];
 
+/* Special persisted design choice: follow the operating system at startup.
+   It is intentionally not a discovered stylesheet id. */
+export const SYSTEM_DESIGN_ID = "system";
+
 /* Filenames considered for cover art stored next to the tracks (case-
    insensitive, any of the extensions below). Front = preferred as the
    primary cover; rear/back and any other images in the folder are offered

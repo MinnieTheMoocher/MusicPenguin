@@ -1,5 +1,6 @@
 import * as fs from "fs";
 import { nativeTheme } from "electron";
+import { SYSTEM_DESIGN_ID } from "../common/config";
 
 /** Map a desktop color scheme to the default design id. */
 const designForScheme = (scheme: "dark" | "light"): string =>
@@ -17,7 +18,7 @@ export function detectInitialDesign(settingsPath: string, knownDesignIds: Readon
   try {
     const raw = fs.readFileSync(settingsPath, "utf-8");
     const s = JSON.parse(raw);
-    if (typeof s.design === "string" && knownDesignIds.has(s.design)) {
+    if (typeof s.design === "string" && s.design !== SYSTEM_DESIGN_ID && knownDesignIds.has(s.design)) {
       return s.design; // the user decided explicitly
     }
   } catch { /* no settings yet */ }
