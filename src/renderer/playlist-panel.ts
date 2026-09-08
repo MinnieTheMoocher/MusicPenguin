@@ -70,7 +70,7 @@ const SORT_COLUMNS = [
   { key: "rating", label: "Rating" },
   { key: "duration", label: "Duration" },
   { key: "playcount", label: "Play Count" },
-  { key: "ext", label: "Ext" },
+  { key: "ext", label: "File Extension" },
   { key: "filename", label: "Path" },
 ];
 

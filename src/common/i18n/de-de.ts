@@ -82,7 +82,7 @@ export const deDE: ITranslate = {
     "Beats Per Minute": "Beats pro Minute",
     "File Extension": "Dateierweiterung",
     "#": "#",
-    "Ext": "Datei-Erw.",
+    "Ext": "Erw",
     "Cover": "Cover",
     "(click for theater mode)": "(klicken für Theatermodus)",
 

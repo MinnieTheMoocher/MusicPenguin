@@ -279,7 +279,7 @@ const COLUMNS = [
   { key: "bpm" as const, label: "BPM" },
   { key: "rating" as const, label: "Rating" },
   { key: "duration" as const, label: "Duration" },
-  { key: "ext" as const, label: "Ext" },
+  { key: "ext" as const, label: "File Extension" },
   { key: "filename" as const, label: "Path" },
 ];
 
