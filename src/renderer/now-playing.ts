@@ -526,12 +526,13 @@ export async function loadTrack(filePath: string, title?: string): Promise<void>
   if (!isPlayableFile(filePath)) {
     audio.pause();
     const player = getExternalPlayer();
-    const opened = await window.electronAPI.openInExternalPlayer(filePath, player);
-    if (opened) {
+    const result = await window.electronAPI.openInExternalPlayer(filePath, player);
+    if (result.ok) {
       noteExternalPlays([filePath]);
     } else {
       const name = filePath.split("/").pop() ?? filePath;
-      alert(t('Cannot play "$1"\n\nInstall an external player like VLC to play this file format.', name));
+      alert(t('Cannot play "$1"\n\nInstall an external player like VLC to play this file format.', name) +
+        (result.error ? `\n\n${result.error}` : ""));
     }
     return;
   }
@@ -570,12 +571,13 @@ export async function playTrack(filePath: string, title?: string): Promise<void>
   if (!isPlayableFile(filePath)) {
     audio.pause();
     const player = getExternalPlayer();
-    const opened = await window.electronAPI.openInExternalPlayer(filePath, player);
-    if (opened) {
+    const result = await window.electronAPI.openInExternalPlayer(filePath, player);
+    if (result.ok) {
       noteExternalPlays([filePath]);
     } else {
       const name = filePath.split("/").pop() ?? filePath;
-      alert(t('Cannot play "$1"\n\nInstall an external player like VLC to play this file format.', name));
+      alert(t('Cannot play "$1"\n\nInstall an external player like VLC to play this file format.', name) +
+        (result.error ? `\n\n${result.error}` : ""));
     }
     return;
   }
@@ -596,12 +598,13 @@ export async function togglePlayPause(): Promise<void> {
   if (!isPlayableFile(selectedPath)) {
     audio.pause();
     const player = getExternalPlayer();
-    const opened = await window.electronAPI.openInExternalPlayer(selectedPath, player);
-    if (opened) {
+    const result = await window.electronAPI.openInExternalPlayer(selectedPath, player);
+    if (result.ok) {
       noteExternalPlays([selectedPath]);
     } else {
       const name = selectedPath.split("/").pop() ?? selectedPath;
-      alert(t('Cannot play "$1"\n\nInstall an external player like VLC to play this file format.', name));
+      alert(t('Cannot play "$1"\n\nInstall an external player like VLC to play this file format.', name) +
+        (result.error ? `\n\n${result.error}` : ""));
     }
     return;
   }

@@ -1290,6 +1290,7 @@ export function initPlaylist(
          in a mixed selection fall back to the first local file. */
       const pathsToCheck = selPaths.length ? selPaths : [targetPath];
       const firstLocalPath = pathsToCheck.find((p) => !/^https?:\/\//i.test(p));
+      const localPaths = pathsToCheck.filter((p) => !/^https?:\/\//i.test(p));
       if (firstLocalPath) {
         const showItem = document.createElement("div");
         showItem.className = "context-menu-item";
@@ -1299,6 +1300,17 @@ export function initPlaylist(
           await window.electronAPI.showInExternalFileExplorer(firstLocalPath, false);
         });
         menu.appendChild(showItem);
+
+        const defaultAppItem = document.createElement("div");
+        defaultAppItem.className = "context-menu-item";
+        defaultAppItem.textContent = t("Open with Default Application");
+        defaultAppItem.addEventListener("click", async () => {
+          closeSortContextMenu();
+          audio.pause();
+          const opened = await window.electronAPI.openWithDefaultApplication(localPaths);
+          if (opened.length > 0) noteExternalPlays(opened);
+        });
+        menu.appendChild(defaultAppItem);
       }
 
       const vlcItem = document.createElement("div");
@@ -1318,8 +1330,12 @@ export function initPlaylist(
           }
         }
         audio.pause();
-        const opened = await window.electronAPI.openInExternalPlayer(toPlay, getExternalPlayer());
-        if (opened) noteExternalPlays(toPlay);
+        const result = await window.electronAPI.openInExternalPlayer(toPlay, getExternalPlayer());
+        if (result.ok) {
+          noteExternalPlays(toPlay);
+        } else {
+          alert(t("Could not open external player:\n$1", result.error ?? ""));
+        }
       });
       menu.appendChild(vlcItem);
 

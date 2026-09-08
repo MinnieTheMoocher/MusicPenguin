@@ -25,7 +25,7 @@ export async function initExternalPlayer(): Promise<void> {
 
 export async function checkExternalPlayerCommand(name: string): Promise<boolean> {
   try {
-    return await window.electronAPI.checkCommand(name);
+    return await window.electronAPI.isExternalPlayerAvailable(name);
   } catch { return false; }
 }
 

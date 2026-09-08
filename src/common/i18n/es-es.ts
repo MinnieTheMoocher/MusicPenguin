@@ -93,6 +93,8 @@ export const esES: ITranslate = {
 
     // Context menus
     "Show in Folder": "Mostrar en la carpeta",
+    "Open with Default Application": "Abrir con la aplicación predeterminada",
+    "Could not open external player:\n$1": "No se pudo abrir el reproductor externo:\n$1",
     "Play in $1": "Reproducir con $1",
     "Copy Path": "Copiar ruta",
     "Rescan Tags": "Volver a leer etiquetas",
@@ -111,6 +113,8 @@ export const esES: ITranslate = {
 
     // Settings
     "Design": "Diseño",
+    "System": "Sistema (automático)",
+    "Follow the operating system color scheme at startup": "Usar el esquema de color del sistema al iniciar",
     "Dark Gray": "Gris oscuro",
     "White": "Blanco",
     "Blue": "Azul",

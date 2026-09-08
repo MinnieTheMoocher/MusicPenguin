@@ -1,4 +1,5 @@
 import { getLanguage, setLanguage, t, LANGUAGES } from "../common/i18n/index.js";
+import { SYSTEM_DESIGN_ID } from "../common/config.js";
 import { initDebugLog } from "./debug-log.js";
 import { getExternalPlayer, checkExternalPlayerCommand, saveExternalPlayer } from "./external-player.js";
 import { getMinAutoplayRating, initMinAutoplayRating, saveMinAutoplayRating } from "./min-autoplay-rating.js";
@@ -54,7 +55,7 @@ async function loadSavedDesignId(): Promise<string> {
       return data.design;
     }
   } catch { /* ignore */ }
-  return "dark_gray";
+  return SYSTEM_DESIGN_ID;
 }
 
 async function saveDesign(id: string): Promise<void> {
@@ -84,6 +85,11 @@ export async function initSettings(): Promise<void> {
   function fillDesignOptions(): void {
     const current = designSelect.value;
     designSelect.replaceChildren();
+    const systemOpt = document.createElement("option");
+    systemOpt.value = SYSTEM_DESIGN_ID;
+    systemOpt.textContent = t("System");
+    systemOpt.title = t("Follow the operating system color scheme at startup");
+    designSelect.appendChild(systemOpt);
     for (const [label, entries] of [
       [t("Built-In"), designLists.builtin],
       [t("Custom"), designLists.custom],
@@ -100,7 +106,9 @@ export async function initSettings(): Promise<void> {
       }
       designSelect.appendChild(group);
     }
-    designSelect.value = designHrefs.has(current) && current !== "" ? current : defaultDesignId();
+    designSelect.value = current === SYSTEM_DESIGN_ID || (designHrefs.has(current) && current !== "")
+      ? current
+      : defaultDesignId();
   }
 
   async function refreshDesigns(): Promise<void> {
@@ -115,7 +123,8 @@ export async function initSettings(): Promise<void> {
   }
 
   function defaultDesignId(): string {
-    if (designHrefs.has(savedDesign)) return savedDesign;
+    if (selectedDesignId === SYSTEM_DESIGN_ID) return SYSTEM_DESIGN_ID;
+    if (designHrefs.has(selectedDesignId)) return selectedDesignId;
     const href = decodeStartupDesignHref();
     if (href) {
       for (const d of [...designLists.builtin, ...designLists.custom]) {
@@ -140,11 +149,20 @@ export async function initSettings(): Promise<void> {
     }
   }
 
-  const savedDesign = await loadSavedDesignId();
+  let selectedDesignId = await loadSavedDesignId();
   await refreshDesigns();
-  if (designHrefs.has(savedDesign)) {
-    applyDesign(savedDesign);
+  if (designHrefs.has(selectedDesignId)) {
+    applyDesign(selectedDesignId);
   }
+
+  const systemThemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
+  const applyCurrentSystemDesign = (animate = true): void => {
+    const currentSystemDesign = systemThemeQuery.matches ? "dark_gray" : "white";
+    applyDesign(currentSystemDesign, animate);
+  };
+  systemThemeQuery.addEventListener("change", () => {
+    if (selectedDesignId === SYSTEM_DESIGN_ID) applyCurrentSystemDesign();
+  });
   document.addEventListener("language-changed", fillDesignOptions);
 
   for (const lang of Object.values(LANGUAGES).sort((a, b) => a.label.localeCompare(b.label))) {
@@ -305,7 +323,12 @@ export async function initSettings(): Promise<void> {
   designSelect.addEventListener("change", () => {
     const id = designSelect.value;
     if (!id) return;
-    applyDesign(id, true);
+    selectedDesignId = id;
+    if (id === SYSTEM_DESIGN_ID) {
+      applyCurrentSystemDesign();
+    } else {
+      applyDesign(id, true);
+    }
     saveDesign(id);
   });
 

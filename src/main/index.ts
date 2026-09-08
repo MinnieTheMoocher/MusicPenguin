@@ -22,12 +22,13 @@ import { getCoverArt, getCoverArtGroups, fetchDlnaCoverArt, resizeToThumbnail } 
 import { getTrackArtUrls, setTrackArtUrls } from "./database";
 import { walkDirectory, commandExists, jsonStringify, isExecutableCommand } from "./utils";
 import { PLAYABLE_FILE_EXTENSIONS } from "../common/config";
-import { spawn } from "child_process";
+import { execFileSync, spawn } from "child_process";
 
 import type { SqlJsDatabase, ScannedFileInfo } from "./types";
 
 import { DEFAULT_SEARCH_URLS, MAX_PROBE_FILE_SIZE } from "../common/config";
 import { initMpris, updateMprisState } from "./mpris";
+import { IS_LINUX, IS_MACOS } from "./platform";
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 const APP_ICON = path.join(PROJECT_ROOT, "src", "renderer", "musicpenguin256.png");
@@ -759,50 +760,39 @@ ipcMain.handle("db:scanSpecificFiles", async (_event, files: ScannedFileInfo[]) 
 });
 
 /* db:getProblematicFileCount */
+/* Temporary local test hook: set MUSICPENGUIN_TEST_PROBLEMATIC=1 to expose
+   the problematic-files UI even when the current database has no errors. */
+const FORCE_PROBLEMATIC_TEST = process.env.MUSICPENGUIN_TEST_PROBLEMATIC === "1";
+
 ipcMain.handle("db:getProblematicFileCount", async () => {
   await dbReady;
-  return countProblematicFiles(db!);
+  const count = countProblematicFiles(db!);
+  return FORCE_PROBLEMATIC_TEST ? Math.max(1, count) : count;
 });
 
 /* db:getProblematicFiles */
 ipcMain.handle("db:getProblematicFiles", async () => {
   await dbReady;
-  const paths = getProblematicFiles(db!);
+  const actualPaths = getProblematicFiles(db!);
+  const paths = actualPaths.length > 0 || !FORCE_PROBLEMATIC_TEST
+    ? actualPaths
+    : [{ path: path.join(os.tmpdir(), "musicpenguin-test-problematic.mp3") }];
   if (paths.length === 0) {
     return { count: 0, path: "", opened: false };
   }
 
-  const outPath = "/tmp/musicpenguin_problematic_files.txt";
+  const outPath = path.join(os.tmpdir(), "musicpenguin_problematic_files.txt");
   const lines = paths.map((p) => String(p.path ?? "")).join("\n");
   fs.writeFileSync(outPath, lines + "\n");
 
-  const desktop = (process.env.XDG_CURRENT_DESKTOP || "").toLowerCase();
-
-  async function tryEditor(name: string, args: string[]): Promise<boolean> {
-    try {
-      const proc = spawn(name, args, { detached: true, stdio: "ignore" });
-      proc.unref();
-      return await new Promise<boolean>((resolve) => {
-        proc.on("error", () => resolve(false));
-        proc.on("spawn", () => resolve(true));
-      });
-    } catch {
-      return false;
-    }
-  }
-
   let opened = false;
-
-  // Try the OS default editor first
-  if (commandExists("xdg-open")) opened = await tryEditor("xdg-open", [outPath]);
-
-  // Then try well-known GUI editors
-  if (!opened && commandExists("code"))    opened = await tryEditor("code", [outPath]);
-  if (!opened && commandExists("codium"))  opened = await tryEditor("codium", [outPath]);
-
-  // KDE/GNOME fallbacks
-  if (!opened && desktop.includes("kde")  && commandExists("kate"))  opened = await tryEditor("kate", [outPath]);
-  if (!opened && desktop.includes("gnome") && commandExists("gedit")) opened = await tryEditor("gedit", [outPath]);
+  try {
+    /* Open the generated text file with the OS default application. */
+    const error = await shell.openPath(outPath);
+    opened = error === "";
+  } catch {
+    opened = false;
+  }
 
   if (!opened) {
     dialog.showErrorBox(t("Error"), t("Could not open text editor. File saved at:\n$1", outPath));
@@ -917,36 +907,138 @@ ipcMain.handle("db:moveFile", async (_event, oldPath: string, newPath: string) =
   return { ok: true, oldPath, newPath, newFilename };
 });
 
-/* shell:openExternal */
+/* shell:openExternal
+   Delegate URL handling to the operating system's default browser through
+   Electron. This avoids requiring a browser executable such as `firefox`
+   to be present on PATH and works across Linux, macOS and Windows. */
 ipcMain.handle("shell:openExternal", async (_event, url: string) => {
-  let browser = "firefox";
   try {
-    const raw = fs.readFileSync(SETTINGS_PATH, "utf-8");
-    const saved = JSON.parse(raw);
-    if (saved.browser) browser = saved.browser;
-  } catch { /* use default */ }
-  try {
-    spawn(browser, [url], { detached: true, stdio: "ignore" }).unref();
-  } catch { /* ignore */ }
+    await shell.openExternal(url);
+  } catch (err) {
+    console.error("[shell] openExternal failed:", err);
+  }
 });
 
 /* shell:openInExternalPlayer */
+interface ExternalPlayerResult {
+  ok: boolean;
+  error?: string;
+}
+
+/** Resolve a macOS application name or .app bundle without requiring a CLI
+ * executable to be present on PATH. Direct executable paths are handled by
+ * isExecutableCommand() before this resolver is called. */
+function findMacApplication(player: string): string | null {
+  if (!IS_MACOS) return null;
+  const trimmed = player.trim();
+  if (!trimmed) return null;
+
+  if (/\.app$/i.test(trimmed) && fs.existsSync(trimmed)) return trimmed;
+
+  const appName = path.basename(trimmed).replace(/\.app$/i, "");
+  if (!appName || appName.includes("/")) return null;
+
+  for (const root of ["/Applications", path.join(os.homedir(), "Applications")]) {
+    const candidate = path.join(root, `${appName}.app`);
+    if (fs.existsSync(candidate)) return candidate;
+  }
+
+  /* Spotlight also finds applications installed outside the conventional
+     Applications folders. The literal is escaped before it becomes part of
+     the mdfind query. */
+  try {
+    const escaped = appName.replace(/\\/g, "\\\\").replace(/'/g, "\\\\'");
+    const result = execFileSync("mdfind", [`kMDItemFSName == '${escaped}.app'c`], {
+      encoding: "utf8",
+      timeout: 1500,
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    const found = result.split(/\r?\n/).map((entry) => entry.trim()).find(Boolean);
+    if (found && fs.existsSync(found)) return found;
+  } catch { /* Spotlight unavailable or no matching application */ }
+
+  return null;
+}
+
+function spawnExternalPlayerCommand(command: string, files: string[]): Promise<ExternalPlayerResult> {
+  return new Promise((resolve) => {
+    try {
+      const proc = spawn(command, files, { detached: true, stdio: "ignore" });
+      proc.once("error", (err) => resolve({ ok: false, error: err.message }));
+      proc.once("spawn", () => {
+        proc.unref();
+        resolve({ ok: true });
+      });
+    } catch (err) {
+      resolve({ ok: false, error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+}
+
+function openMacApplication(appPath: string, files: string[]): Promise<ExternalPlayerResult> {
+  return new Promise((resolve) => {
+    let stderr = "";
+    try {
+      const proc = spawn("/usr/bin/open", ["-a", appPath, ...files], {
+        detached: true,
+        stdio: ["ignore", "ignore", "pipe"],
+      });
+      proc.stderr?.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
+      proc.once("error", (err) => resolve({ ok: false, error: err.message }));
+      proc.once("close", (code) => {
+        if (code === 0) {
+          resolve({ ok: true });
+        } else {
+          resolve({ ok: false, error: stderr.trim() || `open exited with code ${code ?? "unknown"}` });
+        }
+      });
+    } catch (err) {
+      resolve({ ok: false, error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+}
+
+async function launchExternalPlayer(player: string, files: string[]): Promise<ExternalPlayerResult> {
+  const trimmed = player.trim();
+  if (!trimmed) return { ok: false, error: "No external player configured." };
+
+  if (isExecutableCommand(trimmed)) {
+    return spawnExternalPlayerCommand(trimmed, files);
+  }
+
+  const appPath = findMacApplication(trimmed);
+  if (appPath) {
+    return openMacApplication(appPath, files);
+  }
+
+  return {
+    ok: false,
+    error: IS_MACOS
+      ? `External player not found as a command or macOS application: ${trimmed}`
+      : `External player command not found: ${trimmed}`,
+  };
+}
+
+function isExternalPlayerAvailable(player: string): boolean {
+  const trimmed = player.trim();
+  return trimmed.length > 0 && (isExecutableCommand(trimmed) || findMacApplication(trimmed) !== null);
+}
+
 ipcMain.handle("shell:openInExternalPlayer", async (_event, filePaths: string | string[], player?: string) => {
   const exe = (player ?? "").trim() || "vlc";
-  if (!isExecutableCommand(exe)) return false;
   const files = Array.isArray(filePaths) ? filePaths : [filePaths];
-  try {
-    spawn(exe, files, { detached: true, stdio: "ignore" }).unref();
+  const result = await launchExternalPlayer(exe, files);
+  if (result.ok) {
     // playing a file in an external player counts as a play
     await dbReady;
     for (const f of files) incrementPlaycount(db!, f);
-    return true;
-  } catch { return false; }
+  }
+  return result;
 });
 
 /* shell:isExternalPlayerAvailable */
 ipcMain.handle("shell:isExternalPlayerAvailable", (_event, player?: string) => {
-  return isExecutableCommand((player ?? "").trim() || "vlc");
+  return isExternalPlayerAvailable((player ?? "").trim() || "vlc");
 });
 
 /* shell:checkCommand */
@@ -998,30 +1090,51 @@ ipcMain.on("mpris:updateState", (_event, state) => {
 
 /* shell:showInExternalFileExplorer */
 ipcMain.handle("shell:showInExternalFileExplorer", async (_event, filePath: string, isFolder: boolean) => {
-  const desktop = (process.env.XDG_CURRENT_DESKTOP || "").toLowerCase();
+  try {
+    if (isFolder) {
+      /* Open folders directly through the platform's default file manager. */
+      const error = await shell.openPath(filePath);
+      if (error) throw new Error(error);
+    } else {
+      /* Show the file and select it when the file manager supports that. */
+      shell.showItemInFolder(filePath);
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    dialog.showErrorBox(t("Error"), message || t("Could not open file manager."));
+  }
+});
 
-  // Try the OS default file manager first
-  if (commandExists("xdg-open")) {
-    const target = isFolder ? filePath : path.dirname(filePath);
-    spawn("xdg-open", [target], { detached: true, stdio: "ignore" }).unref();
-    return;
+/* shell:openWithDefaultApplication
+   Open local files with the operating system's associated application.
+   HTTP(S) stream URLs are intentionally ignored because shell.openPath()
+   is for filesystem paths; the renderer only offers this action for local
+   files. Returns the subset that was opened successfully. */
+ipcMain.handle("shell:openWithDefaultApplication", async (_event, filePaths: string | string[]) => {
+  const candidates = Array.isArray(filePaths) ? filePaths : [filePaths];
+  const localFiles = candidates.filter(
+    (filePath): filePath is string => typeof filePath === "string" && filePath.length > 0 && !isStreamUrl(filePath),
+  );
+  const opened: string[] = [];
+
+  for (const filePath of localFiles) {
+    try {
+      const error = await shell.openPath(filePath);
+      if (error === "") {
+        opened.push(filePath);
+      } else {
+        console.error("[shell] openWithDefaultApplication failed:", filePath, error);
+      }
+    } catch (err) {
+      console.error("[shell] openWithDefaultApplication failed:", filePath, err);
+    }
   }
 
-  // KDE fallback — dolphin supports --select for highlighting a specific file
-  if (desktop.includes("kde") && commandExists("dolphin")) {
-    const args = isFolder ? [filePath] : ["--select", filePath];
-    spawn("dolphin", args, { detached: true, stdio: "ignore" }).unref();
-    return;
+  if (opened.length > 0) {
+    await dbReady;
+    for (const filePath of opened) incrementPlaycount(db!, filePath);
   }
-
-  // GNOME fallback — nautilus supports --select
-  if (desktop.includes("gnome") && commandExists("nautilus")) {
-    const args = isFolder ? [filePath] : ["--select", filePath];
-    spawn("nautilus", args, { detached: true, stdio: "ignore" }).unref();
-    return;
-  }
-
-  dialog.showErrorBox(t("Error"), t("Could not open file manager."));
+  return opened;
 });
 
 /* ── App lifecycle ───────────────────────────────────────── */
@@ -1096,12 +1209,14 @@ export async function start() {
   void runStartupDlnaDiscovery();
 
   /* ── MPRIS (Linux D-Bus media key integration) ─────────────── */
-  try {
-    initMpris((action: string) => {
-      debugLog("[MPRIS]", action);
-      mainWindow?.webContents.send("media-key", action);
-    });
-  } catch (e) {
-    console.error("[MPRIS] initMpris failed:", e);
+  if (IS_LINUX) {
+    try {
+      initMpris((action: string) => {
+        debugLog("[MPRIS]", action);
+        mainWindow?.webContents.send("media-key", action);
+      });
+    } catch (e) {
+      console.error("[MPRIS] initMpris failed:", e);
+    }
   }
 }

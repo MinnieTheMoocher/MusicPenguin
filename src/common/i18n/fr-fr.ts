@@ -91,6 +91,8 @@ export const frFR: ITranslate = {
 
     // Context menus
     "Show in Folder": "Afficher dans le dossier",
+    "Open with Default Application": "Ouvrir avec l'application par défaut",
+    "Could not open external player:\n$1": "Impossible d'ouvrir le lecteur externe :\n$1",
     "Play in $1": "Lire avec $1",
     "Copy Path": "Copier le chemin",
     "Rescan Tags": "Analyser à nouveau les tags",
@@ -109,6 +111,8 @@ export const frFR: ITranslate = {
 
     // Settings
     "Design": "Design",
+    "System": "Système (automatique)",
+    "Follow the operating system color scheme at startup": "Utiliser le thème de couleurs du système au démarrage",
     "Dark Gray": "Gris foncé",
     "White": "Blanc",
     "Blue": "Bleu",

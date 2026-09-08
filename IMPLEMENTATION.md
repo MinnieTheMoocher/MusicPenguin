@@ -135,7 +135,9 @@ and invisible (handle-only, no visible knob) cross-handle drag areas at both int
 
 The bottom of the groups panel has four icon buttons:
 **Folders** (opens the folder manager), **Scan** (re-scans all folders), **Problematic** (lists
-files with tag errors), and **Settings** (dark mode toggle).
+files with tag errors), and **Settings** (dark mode toggle). The Problematic button is always
+visible to keep the toolbar layout stable, but remains disabled when the library has no tag
+errors; it is enabled after a scan finds at least one problematic file.
 
 The logo and bottom button row are fixed in place: the group list lives in `#groups-container`,
 which is `flex: 1` with `min-height: 0` and `overflow-y: auto`, so when the groups outgrow the
@@ -263,7 +265,6 @@ write).
   "search-regex": false,
   "search-tag-columns": { "search-tag-title": true, ... },
   "search-urls": ["https://www.discogs.com/search?...&title=${title}&artist=${artist}", ...],
-  "browser": "firefox",
   "external-player": "vlc",
   "min-autoplay-rating": null | 0.5 | 1 | 1.5 | 2 | 2.5 | 3 | 3.5 | 4 | 4.5 | 5,
   "sort-manual": false,
@@ -312,7 +313,7 @@ write).
 | `db:scanSpecificFiles`             | invoke    | Tag-read only the given file list (e.g. right-click "Rescan Tags"); runs the ffprobe duration fixup pass afterwards
 | `db:getCoverArt`                   | invoke    | Local files: read cover from embedded metadata or folder image → data URL. Optional `maxSize` param resizes via `nativeImage` before returning. DLNA rows (http(s) path): GET the stored `track_art_url` from the server → data URL
 | `db:getCoverArtGroups`             | invoke    | Track's cover art in 3 disjunct groups (front / rearCovers / extraImages) → data URLs; DLNA rows return the fetched art as `front` only
-| `db:getProblematicFiles`           | invoke    | List files with `tags_error = 1`, write to `/tmp/musicpenguin_problematic_files.txt`, attempt to open in text editor (xdg-open → code → codium → desktop-specific fallback: kate on KDE, gedit on GNOME)
+| `db:getProblematicFiles`           | invoke    | List files with `tags_error = 1`, write to the OS temporary directory as `musicpenguin_problematic_files.txt`, then open it with Electron `shell.openPath()` in the system's default application
 | `db:getProblematicFileCount`       | invoke    | Return the count of files with `tags_error = 1`
 | `db:clearDatabase`                 | invoke    | Stop tag reader, DELETE all rows, save DB, then emit `library:changed` so the renderer reloads the empty library
 | `db:deleteFiles`                   | invoke    | DELETE rows for given paths from the database
@@ -321,10 +322,11 @@ write).
 | `db:fillDuration`                  | invoke    | Layer-3 duration gap filler: persist a duration learned at play time from the `<audio>` element; only fills `duration IS NULL` gaps, resolves whether the DB changed
 | `db:moveFile`                      | invoke    | Rename file on disk and UPDATE path/filename in DB
 | `db:incrementPlaycount`            | invoke    | Increment play count for a file, return new count
-| `shell:showInExternalFileExplorer` | invoke    | Open system file manager and select the given file (xdg-open → dolphin → nautilus)
-| `shell:openExternal`               | invoke    | Open URL in configured browser (default: firefox)
-| `shell:openInExternalPlayer`       | invoke    | Open file(s) in the configured external player (default `vlc`); counts one play per file
-| `shell:isExternalPlayerAvailable`  | invoke    | Return whether the configured external player command exists
+| `shell:showInExternalFileExplorer` | invoke    | Show a file in the platform's default file manager via Electron `shell.showItemInFolder()` (select when supported), or open a folder via `shell.openPath()`; avoids desktop-specific `xdg-open`/Dolphin/Nautilus detection
+| `shell:openWithDefaultApplication` | invoke    | Open local file(s) with the operating system's associated application via Electron `shell.openPath()`; returns the successfully opened paths and increments their play counts
+| `shell:openExternal`               | invoke    | Open URL in the operating system's default browser via Electron `shell.openExternal()`
+| `shell:openInExternalPlayer`       | invoke    | Open file(s) in the configured external player (default `vlc`); supports executable commands/paths and macOS `.app` bundles, counts one play per file, returns `{ ok, error? }`
+| `shell:isExternalPlayerAvailable`  | invoke    | Return whether the configured external player is available as an executable or, on macOS, an installed application
 | `shell:checkCommand`               | invoke    | Return whether a command name/path is executable (`command -v`)
 | `app:getVersion`                   | invoke    | Return app version string
 | `app:getPlayableExtensions`        | invoke    | Return list of built-in playable file extensions
@@ -534,31 +536,18 @@ handlers route http(s) paths there instead of the local-file logic.
 ### `src/main/desktop.ts`
 
 `detectInitialDesign(settingsPath, knownDesignIds)` — initial design precedence:
-- a saved design setting (any id discovered at runtime — built-in or custom), i.e. "unless the user decided
-  otherwise"; a saved id that is **not** found at runtime is ignored and the flow continues exactly as on first run;
+- a saved design setting (any id discovered at runtime — built-in or custom), or the special `system` choice meaning
+  "follow the operating system at startup"; a saved id that is **not** found at runtime is ignored and the flow
+  continues exactly as on first run;
 - default by desktop color scheme: a dark desktop scheme maps to the **Dark Gray** design, a light desktop
-  scheme to the **White** design
-- otherwise the default is `dark_gray`.
+  scheme to the **White** design, using Electron's cross-platform `nativeTheme.shouldUseDarkColors` API.
 
-The saved setting is read once here; the desktop scheme is then provided by registered provider modules, each
-guarding on its own environment and returning `null` when not applicable:
-
-- `src/main/desktop-kde.ts` — `detectKdeDesktopScheme()` for KDE/Plasma: guards on `XDG_CURRENT_DESKTOP` containing
-  "KDE", then parses `kdeglobals` / `kdedefaults/kdeglobals`: a `ColorScheme` name that says dark/light, else the
-  last resort — `BackgroundNormal`/`ForegroundNormal` luminance (brighter text than background → dark mode).
-- `src/main/desktop-gnome.ts` — `detectGnomeDesktopScheme()` for GNOME (incl. Ubuntu's GNOME shell / Unity): guards on
-  `XDG_CURRENT_DESKTOP` containing "GNOME"/"Unity", then queries user settings via
-  `gsettings get org.gnome.desktop.interface color-scheme` (GNOME 42+ `prefer-dark`/`prefer-light`), falling back to
-  the `gtk-theme` key and finally to `gtk-theme-name` in `~/.config/gtk-{3.0,4.0}/settings.ini`. A theme name that
-  explicitly says dark/light determines the scheme; the last resort probes the configured default text (foreground)
-  and background colors — `gtk-color-scheme` `fg_color`/`bg_color` from the user's or the theme's settings.ini,
-  else `@define-color theme_fg_color`/`theme_bg_color` from the theme's gtk.css — and compares their brightness
-  (brighter text than background → dark mode).
-
-`src/main/color.ts` provides the shared WCAG relative-luminance helpers (`luminanceRgb`, `luminanceHex`) used by the
-brightness comparison. Both providers return only an explicit determination; when the user's choice cannot be
-determined, the provider returns `null` and the dispatcher falls back to the **Dark Gray** default design — a light
-desktop scheme is only used (White design) when the user actually chose a light scheme.
+The saved setting is read once here; the special `system` choice and a missing setting use Electron's cross-platform
+`nativeTheme.shouldUseDarkColors` API. A dark system scheme maps to **Dark Gray**, a light system scheme to
+**White**. This keeps the initial design selection independent of KDE-, GNOME-, GTK- or D-Bus-specific settings
+files and also covers macOS and Windows. Live changes are handled in the renderer through the corresponding
+`prefers-color-scheme` media query, but only while the persisted choice is `system`; an explicitly selected design
+never changes automatically.
 
 ### `src/main/types.ts`
 
@@ -647,8 +636,11 @@ Configurable external player used as a fallback for formats Chromium cannot deco
 (e.g. MPEG Layer II) or via the context-menu "Play in …" action. `getExternalPlayer()` returns
 the persisted command (default `vlc`); `getExternalPlayerDisplayName()` derives the short label
 (last path segment without extension). `initExternalPlayer()` loads the `external-player`
-setting; `checkExternalPlayerCommand(name)` tests executability via the `shell:checkCommand` IPC;
+setting; `checkExternalPlayerCommand(name)` tests availability via the `shell:isExternalPlayerAvailable` IPC;
 `saveExternalPlayer(name)` persists the kebab-case `external-player` key.
+On macOS, a configured executable path is launched directly; a bare application name such as
+`vlc` is resolved as an installed `.app` bundle and opened through the native `open -a` command.
+Launch failures return an error to the renderer instead of failing silently.
 
 ### `src/renderer/min-autoplay-rating.ts`
 
@@ -751,7 +743,7 @@ to the next item in the same section, or the previous one, or falls back to "All
 CSS Grid table with resizable columns (drag handles update CSS variables → saved to settings).
 Multi-selection (Ctrl/Shift/Arrow keys), drag-to-playlist, context menu (Show in Folder — reveals
 the folder of the first local file in the selection and is omitted only when the selection holds no
-local files at all, Play
+local files at all, Open with Default Application for local files, Play
 in external player, Copy Path, Rescan Tags, Goto Album, Goto Folder, Goto Artist, Goto Composer, Sort by column). Click → `onSelect` +
 priority paths. Double-click → `onDblClick` play.
 `formatTime()` converts seconds string to `MM:SS`/`HH:MM:SS`.
@@ -1125,6 +1117,8 @@ a `navBaseIndex()`: the currently playing row when a playlist is active, otherwi
 row the user clicked in the playlist (so a MANUAL prev/next works on a merely-selected entry
 with nothing playing). `hasPlaylistNavBase()` lets `src/index.ts` decide whether idle navigation
 should target the playlist.
+The playlist context menu offers **Open with Default Application** for local files in addition to
+the configured external-player action; HTTP(S) stream entries are excluded from this action.
 Whenever new tracks are ADDED to the playlist while a MAIN-LIST track is currently
 playing and that track is part of the (resulting) playlist, `adoptPlayingTrackIntoPlaylist()`
 adopts it as the playlist's current entry: the playlist play/pause button shows the pause
@@ -1222,9 +1216,19 @@ to settings.
   `file://` is allowed by default.
 * **Empty fields**: Missing artist/album/etc. show as empty string `""`, never as a placeholder
   character like `"—"`.
-* **Problematic files**: Exported to `/tmp/musicpenguin_problematic_files.txt` and auto-opened in
-  the system's default text editor (via `xdg-open`). Falls back to `code`/`codium`, then
-  desktop-specific editors (`kate` on KDE, `gedit` on GNOME).
+* **Problematic files**: Exported to the OS temporary directory as
+  `musicpenguin_problematic_files.txt` and opened through Electron's platform-neutral
+  `shell.openPath()` API. This delegates to the system's default application for text files
+  and avoids requiring `xdg-open`, VS Code, Kate, Gedit, or another desktop-specific editor.
+* **External file manager**: The "show in folder" action uses Electron's platform-neutral
+  shell integration: `shell.showItemInFolder()` for files (selecting them when supported) and
+  `shell.openPath()` for folders. This avoids requiring or detecting `xdg-open`, Dolphin,
+  Nautilus, or another particular Linux desktop and also works with Finder on macOS and
+  Explorer on Windows. File selection remains dependent on the capabilities of the native
+  file manager.
+* **External links**: Links use Electron's platform-neutral `shell.openExternal()` API and
+  therefore open in the operating system's default browser. No browser executable such as
+  Firefox needs to be installed on `PATH`; the old `browser` setting is no longer used.
 
 ## Media Keys
 
@@ -1277,12 +1281,10 @@ design sharing a built-in folder name shadows the built-in. The initial design i
 
 1. Saved `design` in musicpenguin-settings.json — validated against the discovered ids. A saved id that is **not
    found** is ignored and detection continues exactly as on first run.
-2. Default by desktop color scheme: only an explicitly determined scheme maps to a design — dark desktop
-   scheme → **Dark Gray** design, light desktop scheme → **White**. Detected per desktop: KDE parses
-   `~/.config/kdeglobals` / `kdedefaults/kdeglobals` (`ColorScheme` name or background/foreground luminance);
-   GNOME queries `gsettings` (`color-scheme` / `gtk-theme`) and falls back to `~/.config/gtk-{3.0,4.0}/settings.ini`,
-   probing the configured text/background colors for brightness as a last resort. When the user's choice cannot be
-   determined the step yields no scheme.
+2. Default by desktop color scheme: Electron's cross-platform
+   `nativeTheme.shouldUseDarkColors` maps a dark system scheme to the **Dark Gray** design and a light system
+   scheme to the **White** design. The value is read once during startup; live system theme changes are not handled
+   yet.
 3. Default: dark_gray
 
 The chosen design's **stylesheet href** (not the id) is base64-encoded and passed as `?design=` when loading
