@@ -2,6 +2,13 @@
 
 <img src="doc/musicpenguin256.png" width=150 alt="MusicPenguin icon">
 
+## musicpenguin 0.0.5
+
+* feature: design (color scheme) can follow the system setting automatically
+* feature: support macOS
+* fix: various cross-platform bugfixes
+* fix: use default applications instead of hardcoded Firefox, Dolphin, etc
+
 ## musicpenguin 0.0.4
 
 * feature: app look now can be styled by custom CSS by end user (located in `~/.config/musicpenguin/designs`, create new folders there as desired)

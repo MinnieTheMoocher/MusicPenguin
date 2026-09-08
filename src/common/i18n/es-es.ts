@@ -114,7 +114,7 @@ export const esES: ITranslate = {
     // Settings
     "Design": "Diseño",
     "System": "Sistema (automático)",
-    "Follow the operating system color scheme at startup": "Usar el esquema de color del sistema al iniciar",
+    "Follow the operating system color scheme": "Seguir el esquema de color del sistema operativo",
     "Dark Gray": "Gris oscuro",
     "White": "Blanco",
     "Blue": "Azul",

@@ -112,7 +112,7 @@ export const frFR: ITranslate = {
     // Settings
     "Design": "Design",
     "System": "Système (automatique)",
-    "Follow the operating system color scheme at startup": "Utiliser le thème de couleurs du système au démarrage",
+    "Follow the operating system color scheme": "Suivre le thème de couleurs du système",
     "Dark Gray": "Gris foncé",
     "White": "Blanc",
     "Blue": "Bleu",

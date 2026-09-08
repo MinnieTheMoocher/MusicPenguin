@@ -1280,12 +1280,13 @@ On startup, the available designs are discovered at runtime (`src/main/designs.t
 design sharing a built-in folder name shadows the built-in. The initial design is picked with this precedence:
 
 1. Saved `design` in musicpenguin-settings.json — validated against the discovered ids. A saved id that is **not
-   found** is ignored and detection continues exactly as on first run.
+   found** is ignored and detection continues exactly as on first run. The special `system` value means "follow the
+   operating system color scheme".
 2. Default by desktop color scheme: Electron's cross-platform
    `nativeTheme.shouldUseDarkColors` maps a dark system scheme to the **Dark Gray** design and a light system
-   scheme to the **White** design. The value is read once during startup; live system theme changes are not handled
-   yet.
-3. Default: dark_gray
+   scheme to the **White** design. Live system theme changes are only applied while the persisted choice is
+   `system`: the renderer subscribes to the `prefers-color-scheme` media query and re-applies the matching design;
+   an explicitly selected design never changes automatically.
 
 The chosen design's **stylesheet href** (not the id) is base64-encoded and passed as `?design=` when loading
 `src/renderer/index.html` (base64 makes the href survive the URL query round-trip losslessly — folder names may

@@ -88,7 +88,7 @@ export async function initSettings(): Promise<void> {
     const systemOpt = document.createElement("option");
     systemOpt.value = SYSTEM_DESIGN_ID;
     systemOpt.textContent = t("System");
-    systemOpt.title = t("Follow the operating system color scheme at startup");
+    systemOpt.title = t("Follow the operating system color scheme");
     designSelect.appendChild(systemOpt);
     for (const [label, entries] of [
       [t("Built-In"), designLists.builtin],
