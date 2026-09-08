@@ -73,7 +73,7 @@ English, French, Spanish, German
 The package is self-contained, no node.js, npm, or separate Electron installation is necessary. Just
 [download the latest `*.deb` installation file](https://github.com/MinnieTheMoocher/MusicPenguin/releases).
 
-* Install:   `sudo apt install ./musicpenguin_0.0.4_amd64.deb`
+* Install:   `sudo apt install ./musicpenguin_0.0.5_amd64.deb`
 * Uninstall: `sudo apt remove musicpenguin`
 
 ### OpenSUSE, Fedora et.al. (*.rpm)
@@ -81,7 +81,7 @@ The package is self-contained, no node.js, npm, or separate Electron installatio
 The package is self-contained, no node.js, npm, or separate Electron installation is necessary. Just
 [download the latest `*.rpm` installation file](https://github.com/MinnieTheMoocher/MusicPenguin/releases).
 
-* Install:   `sudo zypper install musicpenguin-0.0.4-1.x86_64.rpm`
+* Install:   `sudo zypper install musicpenguin-0.0.5-1.x86_64.rpm`
 * Uninstall: `sudo zypper remove musicpenguin`
 
 ## Building from Source Code

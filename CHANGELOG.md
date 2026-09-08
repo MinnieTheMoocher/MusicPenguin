@@ -4,11 +4,11 @@
 
 ## musicpenguin 0.0.5
 
-* feature: design (color scheme) can follow the system setting automatically
 * feature: support macOS
-* fix: various cross-platform bugfixes
-* fix: use default applications instead of hardcoded Firefox, Dolphin, etc
-* fix: added unittest for t() translations
+* feature: design (color scheme) can follow the system setting automatically
+* bugfix:  various cross-platform bugfixes
+* bugfix:  use default applications instead of hardcoded Firefox, Dolphin, etc
+* bugfix:  added unittest for t() translations
 
 ## musicpenguin 0.0.4
 
