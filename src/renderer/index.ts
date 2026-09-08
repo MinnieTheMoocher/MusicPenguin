@@ -1521,16 +1521,34 @@ async function init() {
   {
     const aboutOverlay = document.getElementById("about-overlay")!;
     const aboutClose = document.getElementById("about-dialog-close")!;
+    const aboutLogo = document.getElementById("app-logo")!;
     const aboutVersion = document.getElementById("about-version")!;
+    const aboutBy = document.getElementById("about-by2") as HTMLAnchorElement;
     const aboutBluesky = document.getElementById("about-bluesky2") as HTMLAnchorElement;
     const aboutGitHub = document.getElementById("about-github2") as HTMLAnchorElement;
     const aboutIconset = document.getElementById("about-iconset2") as HTMLAnchorElement;
+    const aboutContributors = document.getElementById("about-contributors1")!;
     const aboutOk = document.getElementById("about-ok")!;
-    const logo = document.getElementById("app-logo")!;
+
+    const CONTRIBUTORS = ["Michael--"];
 
     function showAbout(): void {
       window.electronAPI.getVersion().then((v) => {
         aboutVersion.textContent = t("Version $1", v);
+        const prefix = document.createElement("span");
+        prefix.textContent = t("Code contributed by: ");
+        aboutContributors.replaceChildren(prefix);
+        for (const contributor of CONTRIBUTORS) {
+          const sep = document.createTextNode(aboutContributors.childNodes.length > 1 ? ", " : "");
+          aboutContributors.appendChild(sep);
+          const a = document.createElement("a");
+          a.id = "about-contributors2";
+          a.className = "about-link";
+          a.textContent = contributor;
+          a.href = `https://github.com/MinnieTheMoocher/MusicPenguin/pulls?q=author%3A${encodeURIComponent(contributor)}`;
+          a.addEventListener("click", (e) => { e.preventDefault(); window.electronAPI.openExternal(a.href); });
+          aboutContributors.appendChild(a);
+        }
       });
       aboutOverlay.classList.remove("hidden");
     }
@@ -1539,11 +1557,16 @@ async function init() {
       aboutOverlay.classList.add("hidden");
     }
 
-    logo.addEventListener("click", showAbout);
+    aboutLogo.addEventListener("click", showAbout);
     aboutClose.addEventListener("click", hideAbout);
     aboutOk.addEventListener("click", hideAbout);
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && !aboutOverlay.classList.contains("hidden")) hideAbout();
+    });
+
+    aboutBy.addEventListener("click", (e) => {
+      e.preventDefault();
+      window.electronAPI.openExternal(aboutBy.href);
     });
 
     aboutGitHub.addEventListener("click", (e) => {

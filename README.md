@@ -105,3 +105,9 @@ npm run electron        # launch the app
 ## Changelog
 
 [CHANGELOG.md](./CHANGELOG.md)
+
+## Contributors
+
+Many thanks go out to the following open source contributors:
+
+* [Michael--](https://github.com/MinnieTheMoocher/MusicPenguin/pulls?q=author%3AMichael--)

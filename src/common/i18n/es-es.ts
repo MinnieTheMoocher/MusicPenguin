@@ -195,6 +195,8 @@ export const esES: ITranslate = {
     "About MusicPenguin": "Acerca de MusicPenguin",
     "Version $1": "Versión $1",
     "Icons License: $1": "Licencia de iconos: $1",
+    "Code contributed by: ": "Código aportado por: ",
+    "Author:": "Autor:",
 
     // Main process
     "Error": "Error",

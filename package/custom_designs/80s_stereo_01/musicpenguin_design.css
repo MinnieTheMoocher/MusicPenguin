@@ -1463,7 +1463,10 @@ select option:hover {
 
 .about-dialog #about-app-name,
 #about-version,
-#about-by,
+#about-by1,
+#about-by2,
+#about-contributors1,
+#about-contributors2,
 #about-bluesky1,
 #about-bluesky2,
 #about-github1,
@@ -1477,7 +1480,8 @@ select option:hover {
 
 .about-dialog #about-bluesky2:hover,
 .about-dialog #about-github2:hover,
-.about-dialog #about-iconset2:hover {
+.about-dialog #about-iconset2:hover,
+.about-dialog #about-contributors2:hover {
   color: #34383c;
   text-shadow: 0 1px rgba(255,255,255,.7);
   text-decoration: underline;

@@ -195,6 +195,8 @@ export const deDE: ITranslate = {
     "About MusicPenguin": "Über MusicPenguin",
     "Version $1": "Version $1",
     "Icons License: $1": "Icons-Lizenz: $1",
+    "Code contributed by: ": "Code beigetragen von: ",
+    "Author:": "Autor:",
 
     // Main process
     "Error": "Fehler",

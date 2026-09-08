@@ -2769,23 +2769,18 @@ label:has(#field-rating) {
   text-align: center;
 }
 
-#about-by {
-  font-size: 0.95rem;
-  color: var(--text-muted);
-  text-align: center;
-  margin-bottom: 2em;
-}
-
+#about-by1,
 #about-bluesky1,
-#about-bluesky2,
 #about-github1,
-#about-github2,
 #about-iconset1,
-#about-iconset2 {
+#about-contributors1 {
   font-size: 0.85rem;
   color: var(--text-muted);
   text-align: center;
-  text-decoration: none;
+}
+
+#about-spacer {
+  height: 2em;
 }
 
 #about-iconset1 {
@@ -2795,15 +2790,14 @@ label:has(#field-rating) {
   gap: 0.6rem;
 }
 
-#about-bluesky2:hover,
-#about-github2:hover,
-#about-iconset2:hover {
-  color: var(--text-primary);
-  text-decoration: underline;
+.about-link {
+  color: var(--text-muted);
+  text-decoration: none;
 }
 
-#about-dialog-footer {
-  margin-top: auto;
+.about-link:hover {
+  color: var(--text-primary);
+  text-decoration: underline;
 }
 
 #detail-form input:focus,

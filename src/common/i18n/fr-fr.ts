@@ -193,6 +193,8 @@ export const frFR: ITranslate = {
     "About MusicPenguin": "À propos de MusicPenguin",
     "Version $1": "Version $1",
     "Icons License: $1": "Licence des icônes : $1",
+    "Code contributed by: ": "Code contribué par : ",
+    "Author:": "Auteur:",
 
     // Main process
     "Error": "Erreur",
