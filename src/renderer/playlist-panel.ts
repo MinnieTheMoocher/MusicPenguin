@@ -8,7 +8,7 @@ import { onPlaybackFailure } from "./playback-error.js";
 import { t } from "../common/i18n/index.js";
 import { ICON_SPEAKER, ICON_MUSIC_NOTE, ICON_CARET_UP, ICON_CARET_DOWN } from "./icons.js";
 import { passesMinAutoplayRating } from "./min-autoplay-rating.js";
-import { ARTIST_ALBUM_TRACKNO, SORTING_MODES, sortPlaylistByArtistAlbumTrackNo } from "./sorting.js";
+import { ARTIST_ALBUM_TRACKNO, SORTING_MODES, sortingModeLabel, sortPlaylistByArtistAlbumTrackNo } from "./sorting.js";
 
 let playlist: PlaylistEntry[] = [];
 let selectedIndices: Set<number> = new Set();
@@ -1443,7 +1443,7 @@ export function initPlaylist(
 
       const label = document.createElement("span");
       label.className = "playlist-sort-label";
-      label.textContent = t(mode.name);
+      label.textContent = sortingModeLabel(mode);
       item.appendChild(label);
 
       item.addEventListener("click", () => {

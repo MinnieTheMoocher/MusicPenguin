@@ -21,7 +21,7 @@
       "command": "bash",
       "args": [
         "-c",
-        "{ [ -d node_modules ] || npm i; } && npm run build"
+        "{ [ -d node_modules ] || npm i; } && npm run build && npm run test"
       ],
       "group": {
         "kind": "build",

@@ -4,7 +4,7 @@ import { t } from "../common/i18n/index.js";
 import { noteExternalPlays } from "./now-playing.js";
 import { getExternalPlayer, getExternalPlayerDisplayName } from "./external-player.js";
 import { DEFAULT_COLUMN_WIDTHS } from "../common/config.js";
-import { ARTIST_ALBUM_TRACKNO, SORTING_MODES } from "./sorting.js";
+import { ARTIST_ALBUM_TRACKNO, SORTING_MODES, sortingModeLabel } from "./sorting.js";
 import { ICON_WARNING, ICON_CARET_UP, ICON_CARET_DOWN } from "./icons.js";
 
 let listSortColumn = "";
@@ -934,7 +934,7 @@ function setupDelegation(): void {
 
         const label = document.createElement("span");
         label.className = "playlist-sort-label";
-        label.textContent = t(mode.name);
+        label.textContent = sortingModeLabel(mode);
         item.appendChild(label);
 
         item.addEventListener("click", () => {

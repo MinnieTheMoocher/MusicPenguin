@@ -81,6 +81,8 @@ export const esES: ITranslate = {
     "Disc Number - Track Number": "Número de disco - Número de pista",
     "Beats Per Minute": "Pulsaciones por minuto",
     "File Extension": "Extensión de archivo",
+    "#": "#",
+    "Ext": "Ext.",
     "Cover": "Portada",
     "(click for theater mode)": "(clic para el modo teatro)",
 
@@ -103,7 +105,6 @@ export const esES: ITranslate = {
     "Goto Artist": "Ir al artista",
     "Goto Composer": "Ir al compositor",
     "Sort by:": "Ordenar por:",
-    "Artist, Album, TrackNo": "Artista, Álbum, N.º de pista",
     "Sort ascending": "Ascendente",
     "Sort descending": "Descendente",
     "Copy": "Copiar",
@@ -113,11 +114,8 @@ export const esES: ITranslate = {
 
     // Settings
     "Design": "Diseño",
-    "System": "Sistema (automático)",
+    "System (automatic)": "Sistema (automático)",
     "Follow the operating system color scheme": "Seguir el esquema de color del sistema operativo",
-    "Dark Gray": "Gris oscuro",
-    "White": "Blanco",
-    "Blue": "Azul",
     "Built-In": "Integrados",
     "Custom": "Personalizados",
     "Language": "Idioma",
@@ -136,11 +134,8 @@ export const esES: ITranslate = {
     "Folders on this computer that are scanned for audio files": "Carpetas de este equipo en las que se buscan archivos de audio",
     "+ Add Folder": "+ Añadir carpeta",
     "No folders added yet.": "Aún no se ha añadido ninguna carpeta.",
-    "No folders configured.": "No hay carpetas configuradas.",
-    "No folders configured. Open settings to add folders.": "No hay carpetas configuradas. Abra los ajustes para añadir carpetas.",
 
     "Scanning...": "Analizando...",
-    "Scan failed: $1": "Error al analizar: $1",
 
     // DLNA audio servers, shown to users as plain "audio servers"
     "Audio Server(s) in your network (read-only)": "Servidor(es) de audio en su red (solo lectura)",
@@ -148,20 +143,13 @@ export const esES: ITranslate = {
     "Audio servers found on this network": "Servidores de audio encontrados en esta red",
     "Enabled": "Habilitado",
     "Scanning audio server $1: $2 $3": "Analizando el servidor de audio $1: $2 $3",
-    "Audio server scan complete.": "Análisis de servidores de audio completado.",
-    "Total tracks: $1.": "Pistas en total: $1.",
-    "Audio server scan failed: $1": "Error al analizar el servidor de audio: $1",
 
     // Status bar / scanning
     "Loading folders...": "Cargando carpetas...",
-    "Scanning folders...": "Analizando carpetas...",
     "Finding files in: $1": "Buscando archivos en: $1",
-    "Found $1 $2. Reading tags...": "Se encontraron $1 $2. Leyendo etiquetas...",
-    "No new files. Scanning tags for untagged entries...": "No hay archivos nuevos. Analizando etiquetas de entradas sin etiquetar...",
-    "Total files: $1.": "Archivos en total: $1.",
-    "Added: $1.": "Añadidos: $1.",
-    "Errors: $1.": "Errores: $1.",
-    "Removed: $1.": "Eliminados: $1.",
+    "$1 errors.": "$1 errores.",
+    "$1 removed.": "$1 eliminados.",
+    "$1 tracks in library.": "$1 pistas en la biblioteca.",
     "$1 $2 in MusicPenguin library.": "$1 $2 en la biblioteca de MusicPenguin.",
     "Tag scanning stopped.": "Análisis de etiquetas detenido.",
     "Tag scanning complete.": "Análisis de etiquetas completado.",
@@ -180,6 +168,7 @@ export const esES: ITranslate = {
     "Cannot play \"$1\"\n\nInstall an external player like VLC to play this file format.": "No se puede reproducir \"$1\".\n\nInstale un reproductor externo como VLC para reproducir este formato de archivo.",
     "Unknown file": "Archivo desconocido",
     "This file appears to be mp3 data embedded in a wav container, unplayable by MusicPenguin.": "Este archivo parece contener datos MP3 dentro de un contenedor WAV y MusicPenguin no puede reproducirlo.",
+    "This file is MPEG Layer II audio, which the built-in player cannot decode.": "Este archivo es audio MPEG Layer II, que el reproductor integrado no puede decodificar.",
     "Very sorry, but this file appears to be unplayable by MusicPenguin.": "Lo sentimos, pero parece que MusicPenguin no puede reproducir este archivo.",
     "Try to investigate its format with e.g. ffprobe or convert it with e.g. ffmpeg.": "Intente analizar su formato con, por ejemplo, ffprobe, o convertirlo con, por ejemplo, ffmpeg.",
     "Try to play in $1 instead": "Intente reproducirlo con $1 en su lugar",

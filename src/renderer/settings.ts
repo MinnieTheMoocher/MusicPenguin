@@ -87,7 +87,7 @@ export async function initSettings(): Promise<void> {
     designSelect.replaceChildren();
     const systemOpt = document.createElement("option");
     systemOpt.value = SYSTEM_DESIGN_ID;
-    systemOpt.textContent = t("System");
+    systemOpt.textContent = t("System (automatic)");
     systemOpt.title = t("Follow the operating system color scheme");
     designSelect.appendChild(systemOpt);
     for (const [label, entries] of [
@@ -183,7 +183,7 @@ export async function initSettings(): Promise<void> {
   /* "0.5 stars" / "1 star" / "2 stars" — singular and plural,
      always with a "." as decimal separator. */
   function starCountLabel(v: number): string {
-    return t(v === 1 ? "$1 star" : "$1 stars", String(v));
+    return v === 1 ? t("$1 star", String(v)) : t("$1 stars", String(v));
   }
 
   function fillMinRatingOptions(): void {

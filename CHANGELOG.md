@@ -8,6 +8,7 @@
 * feature: support macOS
 * fix: various cross-platform bugfixes
 * fix: use default applications instead of hardcoded Firefox, Dolphin, etc
+* fix: added unittest for t() translations
 
 ## musicpenguin 0.0.4
 

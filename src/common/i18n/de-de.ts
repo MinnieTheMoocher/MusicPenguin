@@ -81,6 +81,8 @@ export const deDE: ITranslate = {
     "Disc Number - Track Number": "Disc-Nummer - Titel-Nummer",
     "Beats Per Minute": "Beats pro Minute",
     "File Extension": "Dateierweiterung",
+    "#": "#",
+    "Ext": "Datei-Erw.",
     "Cover": "Cover",
     "(click for theater mode)": "(klicken für Theatermodus)",
 
@@ -103,7 +105,6 @@ export const deDE: ITranslate = {
     "Goto Artist": "Zum Künstler",
     "Goto Composer": "Zum Komponist",
     "Sort by:": "Sortieren nach:",
-    "Artist, Album, TrackNo": "Künstler, Album, Track-Nr.",
     "Sort ascending": "aufsteigend",
     "Sort descending": "absteigend",
     "Copy": "Kopieren",
@@ -113,11 +114,8 @@ export const deDE: ITranslate = {
 
     // Settings
     "Design": "Design",
-    "System": "System (automatisch)",
+    "System (automatic)": "System (automatisch)",
     "Follow the operating system color scheme": "Betriebssystem-Farbschema folgen",
-    "Dark Gray": "Dunkelgrau",
-    "White": "Weiß",
-    "Blue": "Blau",
     "Built-In": "Eingebaut",
     "Custom": "Eigene",
     "Language": "Sprache",
@@ -136,11 +134,8 @@ export const deDE: ITranslate = {
     "Folders on this computer that are scanned for audio files": "Ordner auf diesem Computer, die nach Audiodateien durchsucht werden",
     "+ Add Folder": "+ Ordner hinzufügen",
     "No folders added yet.": "Noch keine Ordner hinzugefügt.",
-    "No folders configured.": "Keine Ordner konfiguriert.",
-    "No folders configured. Open settings to add folders.": "Keine Ordner konfiguriert. Öffnen Sie die Einstellungen, um Ordner hinzuzufügen.",
 
     "Scanning...": "Scannen...",
-    "Scan failed: $1": "Scan fehlgeschlagen: $1",
 
     // DLNA audio servers, shown to users as plain "audio servers"
     "Audio Server(s) in your network (read-only)": "Audio-Server in Ihrem Netzwerk (nur-Lesen)",
@@ -148,20 +143,13 @@ export const deDE: ITranslate = {
     "Audio servers found on this network": "gefundene Audio-Server",
     "Enabled": "Aktiviert",
     "Scanning audio server $1: $2 $3": "Durchsuche Audio-Server $1: $2 $3",
-    "Audio server scan complete.": "Scan des Audio-Servers abgeschlossen.",
-    "Total tracks: $1.": "Titel gesamt: $1.",
-    "Audio server scan failed: $1": "Scan des Audio-Servers fehlgeschlagen: $1",
 
     // Status bar / scanning
     "Loading folders...": "Ordner laden...",
-    "Scanning folders...": "Ordner durchsuchen...",
     "Finding files in: $1": "Suche Dateien in: $1",
-    "Found $1 $2. Reading tags...": "$1 $2 gefunden. Tags werden gelesen...",
-    "No new files. Scanning tags for untagged entries...": "Keine neuen Dateien. Prüfe ungetaggte Dateien auf neue Tags...",
-    "Total files: $1.": "Dateien gesamt: $1.",
-    "Added: $1.": "Neu: $1",
-    "Errors: $1.": "Fehler: $1.",
-    "Removed: $1.": "Entfernt: $1.",
+    "$1 errors.": "$1 Fehler.",
+    "$1 removed.": "$1 entfernt.",
+    "$1 tracks in library.": "$1 Titel in der Bibliothek.",
     "$1 $2 in MusicPenguin library.": "$1 $2 in der MusicPenguin-Bibliothek.",
     "Tag scanning stopped.": "Tag-Scan gestoppt.",
     "Tag scanning complete.": "Tag-Scan abgeschlossen.",
@@ -180,6 +168,7 @@ export const deDE: ITranslate = {
     "Cannot play \"$1\"\n\nInstall an external player like VLC to play this file format.": "\"$1\" kann nicht abgespielt werden.\n\nInstallieren Sie einen externen Player wie VLC, um dieses Dateiformat abzuspielen.",
     "Unknown file": "Unbekannte Datei",
     "This file appears to be mp3 data embedded in a wav container, unplayable by MusicPenguin.": "Diese Datei enthält offenbar MP3-Daten in einem WAV-Container und kann von MusicPenguin nicht abgespielt werden.",
+    "This file is MPEG Layer II audio, which the built-in player cannot decode.": "Diese Datei enthält MPEG-Layer-II-Audio, das der integrierte Player nicht dekodieren kann.",
     "Very sorry, but this file appears to be unplayable by MusicPenguin.": "Diese Datei kann leider nicht von MusicPenguin abgespielt werden.",
     "Try to investigate its format with e.g. ffprobe or convert it with e.g. ffmpeg.": "Untersuchen Sie das Format z.B. mit ffprobe oder konvertieren Sie es z.B. mit ffmpeg.",
     "Try to play in $1 instead": "Stattdessen in $1 abspielen",

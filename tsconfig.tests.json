@@ -1,0 +1,30 @@
+{
+  // TESTS CONFIG
+  //
+  // Type-checks the Node-side test scripts under `tests/` (e.g.
+  // `tests/i18n.test.ts`). These are plain CommonJS scripts executed directly
+  // by Node (`node tests/...`).
+  //
+  // Only used for type-checking; no JS emit (esbuild/tsc never runs here).
+  // The root `tsconfig.json` (editor config) and the main/renderer build
+  // configs do NOT include `tests/`, so they are unaffected by this file.
+  "compilerOptions": {
+    // Same module / strictness settings as the tsconfig.main.json build
+    // config, so the tests type-check with exactly the same toolchain
+    // versions and semantics as the main process.
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "sourceMap": true,
+    "declaration": false,
+    "target": "ES2022",
+    "outDir": "dist",
+    "rootDir": "..",
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["tests"]
+}

@@ -208,11 +208,11 @@ const theaterVolumeIcon = overlay.querySelector("#theater-volume-icon") as HTMLB
 function theaterUpdateVolumeIcon(): void {
   const muted = audio.muted || audio.volume === 0;
   theaterVolumeIcon.innerHTML = muted ? ICON_MUTE : ICON_SPEAKER;
-  theaterVolumeIcon.title = t(muted ? "Unmute" : "Mute");
+  theaterVolumeIcon.title = muted ? t("Unmute") : t("Mute");
 }
 
 document.addEventListener("language-changed", () => {
-  theaterPlayBtn.title = t(audio.paused ? "Play" : "Pause");
+  theaterPlayBtn.title = audio.paused ? t("Play") : t("Pause");
   theaterUpdateVolumeIcon();
 });
 

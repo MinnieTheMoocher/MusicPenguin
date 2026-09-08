@@ -29,6 +29,11 @@ export function getLanguage(): string {
  *
  * Missing keys fall back to the English original, so en-us is the source
  * of truth and never needs an explicit dictionary.
+ *
+ * Always pass a literal as the key. The i18n consistency test extracts keys
+ * by grepping the source for `t("...")` / `t('...')`, so a key hidden inside
+ * a larger expression is not detected. In particular, prefer the ternary as
+ * `cond ? t("A") : t("B")`, never `t(cond ? "A" : "B")`.
  */
 export function t(enKey: string, ...args: Array<string | number>): string {
   const template = currentLanguage.messages[enKey] ?? enKey;

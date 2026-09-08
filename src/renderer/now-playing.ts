@@ -48,14 +48,18 @@ const repeatBtn = document.getElementById("repeat-btn") as HTMLButtonElement;
 
 function updateShuffleBtn(): void {
   shuffleBtn.innerHTML = shuffle ? ICON_SHUFFLE_ON : ICON_SHUFFLE_OFF;
-  shuffleBtn.title = t(shuffle ? "Disable Shuffle" : "Enable Shuffle");
+  shuffleBtn.title = shuffle ? t("Disable Shuffle") : t("Enable Shuffle");
   shuffleBtn.classList.toggle("active", shuffle);
 }
 
 function updateRepeatBtn(): void {
   const next = REPEAT_CYCLE[(REPEAT_CYCLE.indexOf(repeat) + 1) % REPEAT_CYCLE.length]!;
   repeatBtn.innerHTML = REPEAT_ICONS[repeat];
-  repeatBtn.title = t(next === "all" ? "Repeat All" : next === "one" ? "Repeat 1" : "Repeat Off");
+  repeatBtn.title = next === "all"
+    ? t("Repeat All")
+    : next === "one"
+      ? t("Repeat 1")
+      : t("Repeat Off");
   repeatBtn.classList.toggle("active", repeat !== "off");
 }
 
@@ -276,7 +280,7 @@ export function resetNowPlayingWidget(): void {
 function updateVolumeIcon(): void {
   const muted = audio.muted || audio.volume === 0;
   volumeIcon.innerHTML = muted ? ICON_MUTE : ICON_SPEAKER;
-  volumeIcon.title = t(muted ? "Unmute" : "Mute");
+  volumeIcon.title = muted ? t("Unmute") : t("Mute");
 }
 
 function updateInfoText(): void {
@@ -292,7 +296,7 @@ function updateInfoText(): void {
 
 function setPlayButton(playing: boolean): void {
   playBtn.classList.toggle("playing", playing);
-  playBtn.title = t(playing ? "Pause" : "Play");
+  playBtn.title = playing ? t("Pause") : t("Play");
 }
 
 document.addEventListener("language-changed", () => {

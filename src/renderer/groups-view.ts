@@ -7,6 +7,19 @@ const FIXED_GROUP_LABELS = new Set([
   "grp-most-played",
 ]);
 
+function fixedGroupLabel(node: TreeNode): string {
+  switch (node.id) {
+    case "grp-allfiles":
+      return t("All Tracks");
+    case "grp-search":
+      return t("Search Result");
+    case "grp-most-played":
+      return t("Most Played");
+    default:
+      return node.label;
+  }
+}
+
 let contextMenuEl: HTMLElement | null = null;
 function closeContextMenu(): void {
   if (contextMenuEl) {
@@ -52,7 +65,7 @@ export function renderGroups(
     }
 
     const label = document.createElement("span");
-    label.textContent = FIXED_GROUP_LABELS.has(node.id) ? t(node.label) : node.label;
+    label.textContent = fixedGroupLabel(node);
     li.appendChild(label);
 
     if (node.id.endsWith("-heading")) {

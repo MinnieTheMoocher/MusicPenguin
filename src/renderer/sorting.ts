@@ -1,4 +1,5 @@
 import type { PlaylistEntry } from "./types.js";
+import { t } from "../common/i18n/index.js";
 
 /* ── Standard sorting modes ───────────────────────────────────
    Named, reusable library sorts that the context menus can apply.
@@ -8,6 +9,17 @@ export interface SortingMode {
   id: string;
   name: string;
   sort: (arr: Track[]) => void;
+}
+
+export function sortingModeLabel(mode: SortingMode): string {
+  switch (mode.id) {
+    case ARTIST_ALBUM_TRACKNO:
+      return t("Artist") + ", " + t("Album") + ", " + t("Track No");
+    case TRACKNO:
+      return t("Track No");
+    default:
+      return mode.name;
+  }
 }
 
 export const ARTIST_ALBUM_TRACKNO = "artist-album-trackno";
