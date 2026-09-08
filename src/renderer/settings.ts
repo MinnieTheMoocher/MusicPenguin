@@ -89,7 +89,6 @@ export async function initSettings(): Promise<void> {
     systemOpt.value = SYSTEM_DESIGN_ID;
     systemOpt.textContent = t("System (automatic)");
     systemOpt.title = t("Follow the operating system color scheme");
-    designSelect.appendChild(systemOpt);
     for (const [label, entries] of [
       [t("Built-In"), designLists.builtin],
       [t("Custom"), designLists.custom],
@@ -97,6 +96,7 @@ export async function initSettings(): Promise<void> {
       if (entries.length === 0) continue;
       const group = document.createElement("optgroup");
       group.label = label;
+      if (entries === designLists.builtin) group.appendChild(systemOpt);
       for (const entry of entries) {
         const opt = document.createElement("option");
         opt.value = entry.id;
