@@ -3,7 +3,7 @@ command -v gtk-update-icon-cache   >/dev/null 2>&1 && gtk-update-icon-cache -f /
 command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database /usr/share/applications/   || true
 
 # Seed the user's design folder with the example custom designs shipped by the
-# package (see package/custom_designs). Runs as root (dpkg), so the
+# package (see package/designs). Runs as root (dpkg), so the
 # installing user is taken from the sudo context, else the first human account.
 seed_example_designs() {
     ROOT_SRC="/opt/musicpenguin/example-designs"

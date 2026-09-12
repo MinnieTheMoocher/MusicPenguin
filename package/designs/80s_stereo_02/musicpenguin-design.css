@@ -2,82 +2,85 @@
 
    Author: MinnieTheMoocher
 
-   Features:
-   - sharp neon blue VFD displays on black background
-   - polished, bright metallic base surface
-   - metallic click buttons with engraved dark button icons
-   - button exception: PLAY/PAUSE button contains blue LED that lights when playing
-
-   It makes heavy use of all CSS possibilities we have, not simply replacing CSS variables.
-   It is an example of how strong you can modify MusicPenguin's appearance.
+  Features:
+  - Anthracite / near-black anodized metal
+  - Subtle horizontal brushed-metal machining lines
+  - Dark chassis and panels
+  - Black glass/VFD areas retained as the visual anchors
+  - White phosphor illumination
+  - White glow is deliberately restrained: more real hi-fi display than sci-fi neon
+  - Buttons are dark, satin/anodized metal
+  - Physical bevels, inset shadows and button presses
+  - Active controls use white illumination, not a colored accent
+  - Scrollbars, dialogs, toggles, list headers, playlist etc. are all consistently apply the material language
 */
 
-@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Ropa+Sans&display=swap');
 
 :root {
-  --bg: #bfc2c5;
-  --text: #202326;
-  --text-muted: #666b70;
-  --panel-bg: #8e9296;
-  --playlist-bg: #777b7f;
-  --groups-panel-bg: #8e9296;
-  --details-panel-bg: #bfc2c5;
-  --search-panel-bg: #777b7f;
-  --now-playing-bg: #969a9e;
-  --border: #50545a;
-  --divider: #45494e;
-  --divider-hover: #e7e9ea;
-  --hover: rgba(255,255,255,.22);
-  --selected: #0c7fa8;
-  --text-selected: #f4fdff;
-  --input-bg: #05090b;
-  --input-border: #777d82;
-  --accent: #16bfff;
-  --accent-hover: #65dcff;
-  --button-text-accent: #041014;
-  --toggle-off: #3d4246;
-  --toggle-on: #11b8f5;
-  --progress-track: #282d30;
-  --progress-fill: #16c7ff;
-  --row-alt: rgba(255,255,255,.045);
-  --playlist-row-alt: rgba(0,0,0,.075);
-  --scrollbar-thumb: #aeb2b5;
-  --scrollbar-thumb-hover: #f0f2f3;
-  --primary: #16bfff;
-  --primary-hover: #65dcff;
-  --primary-disabled: #0a5a7a;
+  --bg: #24272a;
+  --text: #e0e2e3;
+  --text-muted: #858a8e;
+  --panel-bg: #2c3033;
+  --playlist-bg: #171a1c;
+  --groups-panel-bg: #2b2f32;
+  --details-panel-bg: #24272a;
+  --search-panel-bg: #1c2022;
+  --now-playing-bg: #181b1d;
+  --border: #0c0e0f;
+  --divider: #0a0c0d;
+  --divider-hover: #dfe2e3;
+  --hover: rgba(255,255,255,.09);
+  --selected: #565b5f;
+  --text-selected: #ffffff;
+  --input-bg: #050607;
+  --input-border: #50565a;
+  --accent: #f4f5f5;
+  --accent-hover: #ffffff;
+  --button-text-accent: #111315;
+  --toggle-off: #111416;
+  --toggle-on: #e9ebec;
+  --progress-track: #0b0d0e;
+  --progress-fill: #f2f3f3;
+  --row-alt: rgba(255,255,255,.035);
+  --playlist-row-alt: rgba(0,0,0,.18);
+  --scrollbar-thumb: #50565a;
+  --scrollbar-thumb-hover: #777d81;
+  --primary: #f4f5f5;
+  --primary-hover: #ffffff;
+  --primary-disabled: #50565a;
   --danger: #a62e2e;
   --danger-hover: #d24747;
   --button-text-danger: #fff;
-  --dialog-bg: #aeb2b5;
+  --dialog-bg: #303437;
   --overlay-bg: rgba(0,0,0,.68);
   --input-invalid-bg: #2b0808;
-  --shadow-light: rgba(255,255,255,.5);
-  --shadow-medium: rgba(0,0,0,.42);
-  --shadow-heavy: rgba(0,0,0,.62);
+  --shadow-light: rgba(255,255,255,.16);
+  --shadow-medium: rgba(0,0,0,.62);
+  --shadow-heavy: rgba(0,0,0,.82);
 
-  --vfd-blue: #18c9ff;
-  --vfd-blue-dim: #087da0;
-  --vfd-glow: rgba(24,201,255,.72);
-  --chromium-body: linear-gradient(180deg,#f4f5f5 0%,#c5c8ca 42%,#8d9296 52%,#d9dbdc 100%);
-  --chromium-body-light: linear-gradient(180deg,#f9fafa,#c8cbcd 40%,#7f8589 52%,#e8e9ea);
-  --chromium-body-mid: linear-gradient(180deg,#e7e8e9,#aeb2b5 50%,#73787c);
-  --chromium-body-danger: linear-gradient(180deg,#f0f1f1,#aeb2b5 50%,#777c80);
-  --chromium-edge: #50555a;
-  --chromium-bevel: inset 0 1px 0 rgba(255,255,255,.95),inset 0 -1px 1px rgba(0,0,0,.32),0 1px 2px rgba(0,0,0,.4);
-  --chromium-text: 0 1px 0 rgba(255,255,255,.8);
+  --vfd-blue: #f4f5f5;
+  --vfd-blue-dim: #777d81;
+  --vfd-glow: rgba(255,255,255,.62);
+  --chromium-body: linear-gradient(180deg,#454a4e 0%,#303539 24%,#1d2022 50%,#363a3d 76%,#4b5054 100%);
+  --chromium-body-light: linear-gradient(180deg,#555b5f 0%,#383d40 35%,#202427 52%,#42474a 100%);
+  --chromium-body-mid: linear-gradient(180deg,#3e4347,#292d30 50%,#1a1d1f);
+  --chromium-body-danger: linear-gradient(180deg,#4a3b3b,#302527 50%,#1b1516);
+  --chromium-edge: #090b0c;
+  --chromium-bevel: inset 0 1px 0 rgba(255,255,255,.22),inset 0 -2px 2px rgba(0,0,0,.72),0 1px 2px rgba(0,0,0,.85);
+  --chromium-text: 0 1px 0 rgba(0,0,0,.8);
 
   --sb-width: 15px;
-  --sb-track-bg: linear-gradient(90deg,#3d4449 0%,#4c5358 45%,#565e63 50%,#4c5358 55%,#3d4449 100%);
-  --sb-track-bg-h: linear-gradient(180deg,#3d4449 0%,#4c5358 45%,#565e63 50%,#4c5358 55%,#3d4449 100%);
-  --sb-track-edge: #5f676c;
+  --sb-track-bg: linear-gradient(90deg,#111416 0%,#1c2022 45%,#25292c 50%,#1c2022 55%,#111416 100%);
+  --sb-track-bg-h: linear-gradient(180deg,#111416 0%,#1c2022 45%,#25292c 50%,#1c2022 55%,#111416 100%);
+  --sb-track-edge: #090b0c;
   --sb-track-shadow: inset 1px 0 2px rgba(0,0,0,.45),inset -1px 0 2px rgba(0,0,0,.45),inset 0 0 4px rgba(0,0,0,.3);
   --sb-track-shadow-h: inset 0 1px 2px rgba(0,0,0,.45),inset 0 -1px 2px rgba(0,0,0,.45),inset 0 0 4px rgba(0,0,0,.3);
-  --sb-thumb-bg: linear-gradient(90deg,#565b60 0%,#b8bcbd 12%,#e4e6e7 30%,#c4c7c8 50%,#e8e9ea 70%,#b6b9ba 86%,#62676b 100%);
-  --sb-thumb-bg-h: linear-gradient(180deg,#565b60 0%,#b8bcbd 12%,#e4e6e7 30%,#c4c7c8 50%,#e8e9ea 70%,#b6b9ba 86%,#62676b 100%);
-  --sb-thumb-edge: #444b4f;
-  --sb-thumb-shadow: inset 1px 0 rgba(255,255,255,.65),inset -1px 0 rgba(0,0,0,.55),0 1px 3px rgba(0,0,0,.7);
-  --sb-thumb-shadow-h: inset 0 1px rgba(255,255,255,.65),inset 0 -1px rgba(0,0,0,.55),0 1px 3px rgba(0,0,0,.7);
+  --sb-thumb-bg: linear-gradient(90deg,#252a2d 0%,#4b5155 18%,#6a7074 38%,#41464a 52%,#696f73 72%,#464b4f 86%,#25292c 100%);
+  --sb-thumb-bg-h: linear-gradient(180deg,#252a2d 0%,#4b5155 18%,#6a7074 38%,#41464a 52%,#696f73 72%,#464b4f 86%,#25292c 100%);
+  --sb-thumb-edge: #090b0c;
+  --sb-thumb-shadow: inset 1px 0 rgba(255,255,255,.18),inset -1px 0 rgba(0,0,0,.75),0 1px 3px rgba(0,0,0,.9);
+  --sb-thumb-shadow-h: inset 0 1px rgba(255,255,255,.18),inset 0 -1px rgba(0,0,0,.75),0 1px 3px rgba(0,0,0,.9);
 }
 
 html,
@@ -169,8 +172,8 @@ h2 {
 .divider-v.active::after,
 .divider-h:hover::after,
 .divider-h.active::after {
-  background: linear-gradient(90deg,#18c9ff,#eafcff 20%,#18c9ff 50%,#eafcff 80%,#18c9ff);
-  box-shadow: 0 0 7px rgba(24,201,255,.65);
+  background: linear-gradient(90deg,#f4f5f5,#eafcff 20%,#f4f5f5 50%,#eafcff 80%,#f4f5f5);
+  box-shadow: 0 0 7px rgba(255,255,255,.65);
 }
 
 ::-webkit-scrollbar {
@@ -259,7 +262,7 @@ h2 {
   width: 30px;
   height: 27px;
   padding: 0;
-  color: #252a2d;
+  color: #dfe2e3;
 }
 
 .toggle-track {
@@ -286,7 +289,7 @@ h2 {
   font-family: sans-serif;
   border: 1px solid var(--chromium-edge);
   border-radius: 2px;
-  color: #24282b;
+  color: #d9dcde;
   background: var(--chromium-body);
   box-shadow: var(--chromium-bevel);
   text-shadow: var(--chromium-text);
@@ -301,7 +304,7 @@ h2 {
 
 :is(#prev-btn,#play-btn,#next-btn,#repeat-btn,#shuffle-btn,#volume-icon,.btn-icon,#groups-buttons button,.btn,.dialog-close,#status-cancel-btn,.search-btn,.folder-item .btn-expand,.delete-dialog-btn,.internet-btn,.playlist-sort-btn):hover,
 :is(#prev-btn,#play-btn,#next-btn,#repeat-btn,#shuffle-btn,#volume-icon,.btn-icon,#groups-buttons button,.btn,.dialog-close,#status-cancel-btn,.search-btn,.folder-item .btn-expand,.delete-dialog-btn,.internet-btn,.playlist-sort-btn):hover svg {
-  color: #24282b;
+  color: #d9dcde;
 }
 
 :is(#prev-btn,#play-btn,#next-btn,#repeat-btn,#shuffle-btn,#volume-icon,.btn-icon,#groups-buttons button,.btn,.dialog-close,#status-cancel-btn,.search-btn,.folder-item .btn-expand,.delete-dialog-btn,.internet-btn,.playlist-sort-btn):active:not(:disabled) {
@@ -326,7 +329,7 @@ h2 {
 }
 
 .btn-primary {
-  color: #24282b;
+  color: #d9dcde;
   text-shadow: var(--chromium-text);
 }
 
@@ -341,19 +344,19 @@ h2 {
 .folder-item .btn-expand:hover,
 .folder-item .btn-expand.expanded {
   background: var(--chromium-body);
-  color: #24282b;
+  color: #d9dcde;
   border-color: var(--chromium-edge);
   filter: none;
   text-shadow: var(--chromium-text);
 }
 
 .folder-item .btn-expand:hover svg {
-  color: #24282b;
+  color: #d9dcde;
 }
 
 .search-btn:hover {
   background: var(--chromium-body);
-  color: #24282b;
+  color: #d9dcde;
   text-shadow: var(--chromium-text);
 }
 
@@ -372,7 +375,7 @@ h2 {
 .playlist-sort-btn.active {
   background: var(--chromium-body);
   border-color: var(--chromium-edge);
-  color: #24282b;
+  color: #d9dcde;
   box-shadow: var(--chromium-bevel);
   text-shadow: var(--chromium-text);
 }
@@ -384,15 +387,15 @@ h2 {
 }
 
 .playlist-sort-btn.active svg {
-  color: #25ceff;
-  filter: drop-shadow(0 0 3px #25ceff) drop-shadow(0 0 8px rgba(24,201,255,.85));
+  color: #ffffff;
+  filter: drop-shadow(0 0 3px #ffffff) drop-shadow(0 0 8px rgba(255,255,255,.85));
 }
 
 #playlist-play-btn.enabled,
 #playlist-play-btn.enabled:hover {
   background: var(--chromium-body);
   border-color: var(--chromium-edge);
-  color: #24282b;
+  color: #d9dcde;
 }
 
 #shuffle-btn:not(.active),
@@ -467,7 +470,7 @@ h2 {
 #theater-next-btn:hover:not(:disabled) {
   filter: none;
   text-shadow: var(--chromium-text);
-  color: #24282b;
+  color: #d9dcde;
   background: var(--chromium-body);
 }
 
@@ -482,20 +485,20 @@ h2 {
 #theater-play-btn:hover:not(:disabled) svg,
 #theater-prev-btn:hover:not(:disabled) svg,
 #theater-next-btn:hover:not(:disabled) svg {
-  color: #24282b;
+  color: #d9dcde;
 }
 
 .btn-icon.active {
   background: var(--chromium-body);
   border-color: var(--chromium-edge);
-  color: #24282b;
+  color: #d9dcde;
   box-shadow: var(--chromium-bevel);
 }
 
 .btn-icon.active svg,
 #folders-btn.active svg,
 #settings-btn.active svg {
-  color: #24282b;
+  color: #d9dcde;
 }
 
 #repeat-btn:not(.active),
@@ -524,9 +527,9 @@ h2 {
 
 .folder-check:checked,
 .search-tag input[type="checkbox"]:checked {
-  background: radial-gradient(circle at 35% 28%,#dfffff 0%,#61e6ff 14%,#12cfff 38%,#0787ae 68%,#013747 100%);
-  border-color: #0b5f74;
-  box-shadow: inset 0 1px 1px rgba(255,255,255,.9),inset 0 -2px 2px rgba(0,30,40,.8),0 0 4px rgba(24,201,255,.95),0 0 10px rgba(24,201,255,.65),0 0 18px rgba(24,201,255,.28);
+  background: radial-gradient(circle at 35% 28%,#dfffff 0%,#ffffff 14%,#f4f5f5 38%,#c5c8ca 68%,#202427 100%);
+  border-color: #5b6266;
+  box-shadow: inset 0 1px 1px rgba(255,255,255,.9),inset 0 -2px 2px rgba(0,0,0,.8),0 0 4px rgba(255,255,255,.95),0 0 10px rgba(255,255,255,.65),0 0 18px rgba(255,255,255,.28);
 }
 
 .folder-check:checked::after,
@@ -542,7 +545,7 @@ h2 {
 
 .folder-check:focus-visible,
 .search-tag input[type="checkbox"]:focus-visible {
-  outline: 1px solid #45ddff;
+  outline: 1px solid #ffffff;
   outline-offset: 2px;
 }
 
@@ -572,6 +575,8 @@ h2 {
   background: linear-gradient(180deg,rgba(255,255,255,.11),rgba(255,255,255,0));
 }
 
+/* Disabled/read-only fields keep the neutral border; their text stays the
+   same white phosphor tone as editable fields — the inactive state must not dim it. */
 #detail-form.fields-readonly .field-input-wrap,
 #detail-form.fields-readonly .field-textarea-wrap,
 #detail-form.fields-readonly .field-select-wrap,
@@ -601,7 +606,7 @@ h2 {
 #theater-duration,
 .toggle-row select,
 .toggle-row input[type="text"] {
-  font-family: "Share Tech Mono",sans-serif;
+  font-family: "Ropa Sans",sans-serif;
 }
 
 #detail-form input,
@@ -612,7 +617,7 @@ h2 {
   background: transparent;
   border: none;
   border-radius: 0;
-  caret-color: #18c9ff;
+  caret-color: #f4f5f5;
   text-shadow: 0 0 6px rgba(24,201,255,.9),0 0 12px rgba(24,201,255,.5);
   animation: neon-caret-blink 1s steps(1) infinite;
   color: var(--vfd-blue);
@@ -708,7 +713,7 @@ label.field-rating {
 
   color: var(--vfd-blue);
   font-size: 150%;
-  text-shadow: 0 0 2px rgba(255,255,255,.55),0 0 4px #25ceff,0 0 8px rgba(37,206,255,.4);
+  text-shadow: 0 0 2px rgba(255,255,255,.55),0 0 4px #ffffff,0 0 8px rgba(37,206,255,.4);
   letter-spacing: .025em;
 
   border: 0;
@@ -747,27 +752,27 @@ label.field-rating {
   padding: 0;
   border: 1px solid #4e5457;
   border-radius: 2px;
-  color: #252a2d;
-  background: linear-gradient(180deg,#fff 0%,#e5e7e8 18%,#aeb2b4 46%,#72777a 51%,#cfd2d3 78%,#f7f8f8 100%);
+  color: #dfe2e3;
+  background: linear-gradient(180deg,#50565a 0%,#3b4044 18%,#24282b 46%,#171a1c 51%,#353a3e 78%,#4d5357 100%);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.95),inset 0 -1px 1px rgba(0,0,0,.45),0 1px 2px rgba(0,0,0,.9);
-  text-shadow: 0 1px 0 white;
+  text-shadow: 0 1px 0 rgba(255,255,255,.16);
 }
 
 #now-playing-controls > button:hover,
 #volume-icon:hover {
-  color: #252a2d;
+  color: #dfe2e3;
   filter: none;
 }
 
 #now-playing-controls > button:hover svg,
 #volume-icon:hover svg {
-  color: #252a2d;
+  color: #dfe2e3;
 }
 
 #now-playing-controls > button:active:not(:disabled),
 #volume-icon:active:not(:disabled) {
   transform: translate(1px,1px);
-  background: linear-gradient(180deg,#8b9093 0%,#c7cacc 35%,#707578 52%,#bfc3c5 100%);
+  background: linear-gradient(180deg,#171a1c 0%,#282d30 35%,#101214 52%,#222629 100%);
   box-shadow: inset 0 2px 4px rgba(0,0,0,.55),0 0 1px rgba(255,255,255,.5);
 }
 
@@ -818,7 +823,7 @@ label.field-rating {
 }
 
 #now-playing-controls #now-playing-rating {
-  font-family: "Share Tech Mono",sans-serif;
+  font-family: "Ropa Sans",sans-serif;
   color: var(--vfd-blue);
   text-shadow: none;
 }
@@ -835,6 +840,8 @@ label.field-rating {
   display: none;
 }
 
+/* Hi-fi: the play button is a single illuminated indicator — always show the
+   play triangle, never the pause bars, and make it glow white while playing. */
 #play-btn.playing .icon-pause,
 #playlist-play-btn.playing .icon-pause,
 #theater-play-btn.playing .icon-pause {
@@ -856,8 +863,8 @@ label.field-rating {
 #play-btn.playing .icon-play svg,
 #playlist-play-btn.playing .icon-play svg,
 #theater-play-btn.playing .icon-play svg {
-  color: #25ceff;
-  filter: drop-shadow(0 0 3px #25ceff) drop-shadow(0 0 8px rgba(24,201,255,.85));
+  color: #ffffff;
+  filter: drop-shadow(0 0 3px #ffffff) drop-shadow(0 0 8px rgba(255,255,255,.85));
 }
 
 #progress-track {
@@ -870,8 +877,8 @@ label.field-rating {
 
 #progress-fill,
 #now-playing-controls #progress-fill {
-  background: linear-gradient(180deg,#bff5ff 0%,#24cfff 38%,#087d9f 100%);
-  box-shadow: 0 0 5px rgba(24,201,255,.85),0 0 12px rgba(24,201,255,.42);
+  background: linear-gradient(180deg,#ffffff 0%,#f1f2f2 38%,#9da2a5 100%);
+  box-shadow: 0 0 5px rgba(255,255,255,.85),0 0 12px rgba(255,255,255,.42);
 }
 
 #progress-fill::after {
@@ -879,7 +886,7 @@ label.field-rating {
   height: 13px;
   background: radial-gradient(circle at 35% 25%,white 0%,#7ee9ff 20%,#0aa8d5 52%,#075a74 100%);
   border: 1px solid #164c5b;
-  box-shadow: 0 0 5px #18c9ff,0 1px 2px #000;
+  box-shadow: 0 0 5px #f4f5f5,0 1px 2px #000;
 }
 
 #now-playing-controls #progress-fill::after {
@@ -887,14 +894,14 @@ label.field-rating {
   height: 12px;
   background: linear-gradient(135deg,#fff 0%,#d5d9da 32%,#73797c 53%,#f3f5f5 80%,#858b8e 100%);
   border: 1px solid #42484b;
-  box-shadow: inset 0 1px white,0 1px 2px #000,0 0 4px rgba(24,201,255,.65);
+  box-shadow: inset 0 1px rgba(255,255,255,.22),0 1px 2px #000,0 0 4px rgba(255,255,255,.65);
 }
 
 #volume-slider::-webkit-slider-runnable-track {
   height: 8px;
   border: 1px solid #293033;
   border-radius: 1px;
-  background: linear-gradient(180deg,#bff5ff 0%,#24cfff 38%,#087d9f 100%) left center / var(--slider-fill,0%) 100% no-repeat,linear-gradient(180deg,#000 0%,#1b2427 50%,#020506 100%);
+  background: linear-gradient(180deg,#ffffff 0%,#f1f2f2 38%,#9da2a5 100%) left center / var(--slider-fill,0%) 100% no-repeat,linear-gradient(180deg,#000 0%,#1b2427 50%,#020506 100%);
   box-shadow: inset 0 1px 3px #000,0 1px 0 rgba(255,255,255,.10);
 }
 
@@ -906,18 +913,19 @@ label.field-rating {
   border-radius: 50%;
   background: linear-gradient(135deg,#fff 0%,#d5d9da 32%,#73797c 53%,#f3f5f5 80%,#858b8e 100%);
   border: 1px solid #42484b;
-  box-shadow: inset 0 1px white,0 1px 2px #000,0 0 4px rgba(24,201,255,.65);
+  box-shadow: inset 0 1px rgba(255,255,255,.22),0 1px 2px #000,0 0 4px rgba(255,255,255,.65);
 }
 
 #volume-slider:focus::-webkit-slider-runnable-track {
-  background: linear-gradient(180deg,#bff5ff 0%,#24cfff 38%,#087d9f 100%) left center / var(--slider-fill,0%) 100% no-repeat,linear-gradient(180deg,#000 0%,#1b2427 50%,#020506 100%);
+  background: linear-gradient(180deg,#ffffff 0%,#f1f2f2 38%,#9da2a5 100%) left center / var(--slider-fill,0%) 100% no-repeat,linear-gradient(180deg,#000 0%,#1b2427 50%,#020506 100%);
 }
 
+/* Theater volume slider mirrors the now-playing volume slider. */
 #theater-volume-slider::-webkit-slider-runnable-track {
   height: 8px;
   border: 1px solid #293033;
   border-radius: 1px;
-  background: linear-gradient(180deg,#bff5ff 0%,#24cfff 38%,#087d9f 100%) left center / var(--slider-fill,0%) 100% no-repeat,linear-gradient(180deg,#000 0%,#1b2427 50%,#020506 100%);
+  background: linear-gradient(180deg,#ffffff 0%,#f1f2f2 38%,#9da2a5 100%) left center / var(--slider-fill,0%) 100% no-repeat,linear-gradient(180deg,#000 0%,#1b2427 50%,#020506 100%);
   box-shadow: inset 0 1px 3px #000,0 1px 0 rgba(255,255,255,.10);
 }
 
@@ -929,15 +937,15 @@ label.field-rating {
   border-radius: 50%;
   background: linear-gradient(135deg,#fff 0%,#d5d9da 32%,#73797c 53%,#f3f5f5 80%,#858b8e 100%);
   border: 1px solid #42484b;
-  box-shadow: inset 0 1px white,0 1px 2px #000,0 0 4px rgba(24,201,255,.65);
+  box-shadow: inset 0 1px rgba(255,255,255,.22),0 1px 2px #000,0 0 4px rgba(255,255,255,.65);
 }
 
 #theater-volume-slider:focus::-webkit-slider-runnable-track {
-  background: linear-gradient(180deg,#bff5ff 0%,#24cfff 38%,#087d9f 100%) left center / var(--slider-fill,0%) 100% no-repeat,linear-gradient(180deg,#000 0%,#1b2427 50%,#020506 100%);
+  background: linear-gradient(180deg,#ffffff 0%,#f1f2f2 38%,#9da2a5 100%) left center / var(--slider-fill,0%) 100% no-repeat,linear-gradient(180deg,#000 0%,#1b2427 50%,#020506 100%);
 }
 
 #theater-mode {
-  --vfd-blue: #18c9ff;
+  --vfd-blue: #f4f5f5;
   background: #020506;
 }
 
@@ -947,10 +955,14 @@ label.field-rating {
   text-shadow: none;
 }
 
+/* The whole control cluster (prev/play/next + elapsed time + progress +
+   rating + total time) sits on one big black VFD display, mirroring the
+   main now-playing panel's black display background so the blue text forms
+   a convincing "glow on black glass" effect instead of floating on the wall. */
 #theater-current-time,
 #theater-duration {
   display: inline-block;
-  color: #24cfff;
+  color: #f1f2f2;
   text-shadow: none;
   letter-spacing: .06em;
 }
@@ -966,6 +978,7 @@ label.field-rating {
   padding: 10px 16px 38px;
 }
 
+/* Glossy highlight overlay at the top of the glass display. */
 #theater-controls::before {
   content: "";
   position: absolute;
@@ -975,6 +988,7 @@ label.field-rating {
   background: linear-gradient(180deg,rgba(255,255,255,.095) 0%,rgba(255,255,255,.025) 11%,transparent 25%);
 }
 
+/* Fake horizontal raster lines across the glass display. */
 #theater-controls::after {
   content: "";
   position: absolute;
@@ -997,52 +1011,54 @@ label.field-rating {
 }
 
 #theater-progress-fill {
-  background: linear-gradient(180deg,#dffaff,#18c9ff,#08799a);
-  box-shadow: 0 0 10px rgba(24,201,255,.75);
+  background: linear-gradient(180deg,#ffffff,#f4f5f5,#9da2a5);
+  box-shadow: 0 0 10px rgba(255,255,255,.75);
 }
 
 #theater-progress-fill::after {
   background: #b9f4ff;
-  box-shadow: 0 0 9px #18c9ff;
+  box-shadow: 0 0 9px #f4f5f5;
 }
 
 #theater-close {
-  background: linear-gradient(180deg,#fff 0%,#e5e7e8 18%,#aeb2b4 46%,#72777a 51%,#cfd2d3 78%,#f7f8f8 100%);
+  background: linear-gradient(180deg,#50565a 0%,#3b4044 18%,#24282b 46%,#171a1c 51%,#353a3e 78%,#4d5357 100%);
   border: 1px solid #4e5457;
-  color: #252a2d;
+  color: #dfe2e3;
   border-radius: 2px;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.95),inset 0 -1px 1px rgba(0,0,0,.45),0 1px 2px rgba(0,0,0,.9);
-  text-shadow: 0 1px 0 white;
+  text-shadow: 0 1px 0 rgba(255,255,255,.16);
 }
 
 #theater-close:hover {
-  color: #252a2d;
+  color: #dfe2e3;
   filter: none;
-  background: linear-gradient(180deg,#fff 0%,#e5e7e8 18%,#aeb2b4 46%,#72777a 51%,#cfd2d3 78%,#f7f8f8 100%);
-  text-shadow: 0 1px 0 white;
+  background: linear-gradient(180deg,#50565a 0%,#3b4044 18%,#24282b 46%,#171a1c 51%,#353a3e 78%,#4d5357 100%);
+  text-shadow: 0 1px 0 rgba(255,255,255,.16);
 }
 
 #theater-close:hover svg {
-  color: #252a2d;
+  color: #dfe2e3;
 }
 
 #theater-close:active:not(:disabled) {
   transform: translate(1px,1px);
-  background: linear-gradient(180deg,#8b9093 0%,#c7cacc 35%,#707578 52%,#bfc3c5 100%);
+  background: linear-gradient(180deg,#171a1c 0%,#282d30 35%,#101214 52%,#222629 100%);
   box-shadow: inset 0 2px 4px rgba(0,0,0,.55),0 0 1px rgba(255,255,255,.5);
 }
 
+/* Theater prev/play/next buttons mirror the now-playing control buttons'
+   brighter 6-stop chrome face rather than the shared 4-stop body gradient. */
 #theater-prev-btn,
 #theater-play-btn,
 #theater-next-btn {
   width: 30px;
   height: 27px;
-  color: #252a2d;
-  background: linear-gradient(180deg,#fff 0%,#e5e7e8 18%,#aeb2b4 46%,#72777a 51%,#cfd2d3 78%,#f7f8f8 100%);
+  color: #dfe2e3;
+  background: linear-gradient(180deg,#50565a 0%,#3b4044 18%,#24282b 46%,#171a1c 51%,#353a3e 78%,#4d5357 100%);
   border: 1px solid #4e5457;
   border-radius: 2px;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.95),inset 0 -1px 1px rgba(0,0,0,.45),0 1px 2px rgba(0,0,0,.9);
-  text-shadow: 0 1px 0 white;
+  text-shadow: 0 1px 0 rgba(255,255,255,.16);
 }
 
 #theater-play-btn {
@@ -1054,21 +1070,21 @@ label.field-rating {
 #theater-prev-btn:hover,
 #theater-play-btn:hover,
 #theater-next-btn:hover {
-  color: #252a2d;
+  color: #dfe2e3;
   filter: none;
 }
 
 #theater-prev-btn:hover svg,
 #theater-play-btn:hover svg,
 #theater-next-btn:hover svg {
-  color: #252a2d;
+  color: #dfe2e3;
 }
 
 #theater-prev-btn:active:not(:disabled),
 #theater-play-btn:active:not(:disabled),
 #theater-next-btn:active:not(:disabled) {
   transform: translate(1px,1px);
-  background: linear-gradient(180deg,#8b9093 0%,#c7cacc 35%,#707578 52%,#bfc3c5 100%);
+  background: linear-gradient(180deg,#171a1c 0%,#282d30 35%,#101214 52%,#222629 100%);
   box-shadow: inset 0 2px 4px rgba(0,0,0,.55),0 0 1px rgba(255,255,255,.5);
 }
 
@@ -1077,37 +1093,40 @@ label.field-rating {
   color: #888d91;
   filter: none;
   opacity: 1;
-  background: linear-gradient(180deg,#fff 0%,#e5e7e8 18%,#aeb2b4 46%,#72777a 51%,#cfd2d3 78%,#f7f8f8 100%);
+  background: linear-gradient(180deg,#50565a 0%,#3b4044 18%,#24282b 46%,#171a1c 51%,#353a3e 78%,#4d5357 100%);
 }
 
 #theater-volume-icon {
   width: 30px;
   height: 27px;
   padding: 0;
-  color: #252a2d;
-  background: linear-gradient(180deg,#fff 0%,#e5e7e8 18%,#aeb2b4 46%,#72777a 51%,#cfd2d3 78%,#f7f8f8 100%);
+  color: #dfe2e3;
+  background: linear-gradient(180deg,#50565a 0%,#3b4044 18%,#24282b 46%,#171a1c 51%,#353a3e 78%,#4d5357 100%);
   border: 1px solid #4e5457;
   border-radius: 2px;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.95),inset 0 -1px 1px rgba(0,0,0,.45),0 1px 2px rgba(0,0,0,.9);
-  text-shadow: 0 1px 0 white;
+  text-shadow: 0 1px 0 rgba(255,255,255,.16);
 }
 
 #theater-volume-icon:hover {
-  color: #252a2d;
+  color: #dfe2e3;
   filter: none;
-  text-shadow: 0 1px 0 white;
+  text-shadow: 0 1px 0 rgba(255,255,255,.16);
 }
 
 #theater-volume-icon:hover svg {
-  color: #252a2d;
+  color: #dfe2e3;
 }
 
 #theater-volume-icon:active:not(:disabled) {
   transform: translate(1px,1px);
-  background: linear-gradient(180deg,#8b9093 0%,#c7cacc 35%,#707578 52%,#bfc3c5 100%);
+  background: linear-gradient(180deg,#171a1c 0%,#282d30 35%,#101214 52%,#222629 100%);
   box-shadow: inset 0 2px 4px rgba(0,0,0,.55),0 0 1px rgba(255,255,255,.5);
 }
 
+/* The panel must render identically whichever position it is moved to —
+   only its location changes. Inline the exact same border stack as the
+   top position so the bottom placement does not look asymmetric. */
 #app.np-bottom #now-playing {
   margin-top: 0;
   border-top: 1px solid #777d80;
@@ -1117,60 +1136,85 @@ label.field-rating {
 }
 
 #app-logo {
-  width: 130px;
-  height: 80px;
+  width: 235px;
+  height: 1.8em;
   align-self: center;
-  margin: 1em 1rem .5rem 0;
+  margin: 1em 1rem 0px 1rem;
   padding: .5rem 1rem 0 0;
-  background: url("musicpenguin_metallic_text.png") no-repeat center / contain;
+  /*background: url("musicpenguin_metallic_text.png") no-repeat center / contain;*/
   flex-shrink: 0;
   cursor: pointer;
+
+  /* "music/penguin" ;) ;) ;) */
+  padding:0;
+  font-family:sans-serif;
+  color:white;
+  font-weight:1;
+  text-align:center;
+  font-size:1.7em;
+  letter-spacing: 0em;
+  font-weight:bold;
+}
+
+#app-logo::after {
+  content: "music/penguin";
+  background: linear-gradient(180deg,#dfe3e6 0%,#ffffff 20%,#ffffff 45%,#e8ebed 55%,#ffffff 72%,#c9cdd1 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow:
+    0 1px 0 #2a2d30,
+    0 2px 5px rgba(0,0,0,.45),
+    0 8px 16px rgba(0,0,0,.30);
 }
 
 #app-logo-img {
   display: none;
 }
 
+#groups-buttons {
+  padding-right: 0;
+}
+
 #detail-form input::selection,
 #detail-form textarea::selection,
 #search-input::selection,
 select::selection {
-  background: rgba(24,201,255,.35);
-  color: white;
+  background: rgba(255,255,255,.35);
+  color: #f5f6f6;
 }
 
 select::picker(select) {
   appearance: base-select;
-  background: #030709;
+  background: #030405;
   border: 1px solid #555d61;
   border-radius: 2px;
   box-shadow: 0 4px 12px rgba(0,0,0,.7);
 }
 
 select option {
-  background: #030709;
+  background: #030405;
   color: var(--vfd-blue);
   padding: 4px 8px;
 }
 
 select optgroup {
-  background: #030709;
-  color: #57c9e8;
+  background: #030405;
+  color: #b9bdc0;
 }
 
 select optgroup label {
-  background: #030709;
-  color: #57c9e8;
+  background: #030405;
+  color: #b9bdc0;
 }
 
 select option:checked {
-  background: #2fc9ee;
-  color: #fff;
+  background: #70767a;
+  color: #f5f6f6;
 }
 
 select option:hover {
-  background: #2fc9ee;
-  color: #fff;
+  background: #70767a;
+  color: #f5f6f6;
 }
 
 #detail-form input:focus,
@@ -1193,34 +1237,36 @@ select option:hover {
 }
 
 #list-table th {
-  color: #303438;
-  background: linear-gradient(180deg,#f0f1f1 0%,#bfc2c4 44%,#898e92 52%,#d7d9da 100%);
+  color: #d0d3d5;
+  background: linear-gradient(180deg,#4b5155 0%,#34393d 44%,#1d2123 52%,#3e4347 100%);
   border-bottom: 2px solid #4a4f53;
-  text-shadow: 0 1px white;
+  text-shadow: 0 1px 0 rgba(255,255,255,.18);
   letter-spacing: .04em;
 }
 
 #list-table thead th.sorted {
-  background: linear-gradient(180deg,#73defc 0%,#179fc8 48%,#087393 100%);
-  color: white;
-  text-shadow: 0 0 5px #fff,0 1px 2px #034050;
+  background: linear-gradient(180deg,#dfe2e3 0%,#179fc8 48%,#087393 100%);
+  color: #f5f6f6;
+  text-shadow: 0 0 5px #fff,0 1px 2px #101214;
 }
 
 .sort-badge {
   background: var(--chromium-body);
   border: 1px solid var(--chromium-edge);
   border-radius: 2px;
-  color: #24282b;
+  color: #d9dcde;
   box-shadow: var(--chromium-bevel);
 }
 
+/* The column-header sort arrow glows blue like the play/pause icon: the
+   badge is only rendered for the one column that is actively sorted. */
 .sort-badge svg {
-  color: #25ceff;
-  filter: drop-shadow(0 0 3px #25ceff) drop-shadow(0 0 8px rgba(24,201,255,.85));
+  color: #ffffff;
+  filter: drop-shadow(0 0 3px #ffffff) drop-shadow(0 0 8px rgba(255,255,255,.85));
 }
 
 #list-table td {
-  color: #202427;
+  color: #d7dadd;
   border-bottom: 1px solid rgba(0,0,0,.25);
   padding: 8px;
 }
@@ -1234,29 +1280,32 @@ select option:hover {
 }
 
 #list-table tbody tr:hover td {
-  background: white;
+  background: #4a5054;
 }
 
 #list-table tbody tr.selected td,
 #list-table tbody tr.playing td {
-  background: linear-gradient(180deg,#2fc9ee 0%,#0c7fa8 100%);
-  color: white;
-  text-shadow: 0 1px 2px #034050;
+  background: linear-gradient(180deg,#70767a 0%,#4c5357 100%);
+  color: #f5f6f6;
+  text-shadow: 0 1px 2px #101214;
   box-shadow: inset 0 1px rgba(255,255,255,.35),inset 0 -1px rgba(0,0,0,.25);
 }
 
 #cover-area {
-  background: linear-gradient(135deg,#f7f8f8,#9da2a6 38%,#555b60 50%,#dfe1e2 72%,#7c8287);
+  background: linear-gradient(135deg,#4d5357,#303539 38%,#111416 50%,#3e4448 72%,#202427);
   border: 1px solid #4b5054;
   border-radius: 3px;
   padding: 5px;
-  box-shadow: inset 0 1px white,inset 0 -2px 4px rgba(0,0,0,.5),0 3px 7px rgba(0,0,0,.4);
+  box-shadow: inset 0 1px rgba(255,255,255,.22),inset 0 -2px 4px rgba(0,0,0,.5),0 3px 7px rgba(0,0,0,.4);
 }
 
 #cover-image {
   box-shadow: 0 0 0 1px #111,0 3px 12px rgba(0,0,0,.65);
 }
 
+/* Simulated vertical scrollbars of the main list and playlist reuse the
+   exact same --sb-* recipe as the native scrollbars above: a 15px dark-METAL
+   sunken-groove track column with a raised chrome thumb. One look everywhere. */
 #list-scrollbar,
 #playlist-scrollbar {
   width: var(--sb-width);
@@ -1294,8 +1343,8 @@ select option:hover {
 }
 
 .search-tag {
-  color: #34383c;
-  text-shadow: 0 1px rgba(255,255,255,.7);
+  color: #c4c8ca;
+  text-shadow: 0 1px 0 rgba(255,255,255,.16);
   cursor: pointer;
   user-select: none;
 }
@@ -1305,8 +1354,8 @@ select option:hover {
 #playlist-total-time,
 #status-text,
 #detail-form label > span {
-  color: #34383c;
-  text-shadow: 0 1px rgba(255,255,255,.7);
+  color: #c4c8ca;
+  text-shadow: 0 1px 0 rgba(255,255,255,.16);
 }
 
 #detail-form label > span {
@@ -1315,9 +1364,9 @@ select option:hover {
 }
 
 #groups-panel li.selected {
-  background: linear-gradient(180deg,#2fc9ee 0%,#0c7fa8 100%);
-  color: #fff;
-  text-shadow: 0 1px 2px #034050;
+  background: linear-gradient(180deg,#70767a 0%,#4c5357 100%);
+  color: #f5f6f6;
+  text-shadow: 0 1px 2px #101214;
   box-shadow: inset 0 1px rgba(255,255,255,.35),inset 0 -1px rgba(0,0,0,.25);
 }
 
@@ -1345,17 +1394,17 @@ select option:hover {
 
 .playlist-item .playlist-artist-line,
 .playlist-item .playlist-duration {
-  color: #65aabe;
+  color: #9da2a5;
 }
 
 .playlist-item:hover {
-  background: rgba(24,201,255,.11);
+  background: rgba(255,255,255,.08);
 }
 
 .playlist-item.selected,
 .playlist-item.playing {
-  background: linear-gradient(90deg,rgba(24,201,255,.35),rgba(24,201,255,.08));
-  box-shadow: inset 3px 0 #18c9ff,inset 0 1px rgba(255,255,255,.08);
+  background: linear-gradient(90deg,rgba(255,255,255,.35),rgba(24,201,255,.08));
+  box-shadow: inset 3px 0 #f4f5f5,inset 0 1px rgba(255,255,255,.08);
 }
 
 .playlist-item .playlist-cover {
@@ -1364,7 +1413,7 @@ select option:hover {
 }
 
 #status-bar {
-  background: linear-gradient(180deg,#c8cbcd,#8d9296);
+  background: linear-gradient(180deg,#383d41,#1b1f21);
   border-top: 1px solid #555a5e;
   box-shadow: inset 0 1px rgba(255,255,255,.75);
 }
@@ -1376,23 +1425,23 @@ select option:hover {
 .toggle-row select {
   appearance: base-select;
   color: var(--vfd-blue);
-  background: linear-gradient(180deg,rgba(255,255,255,.1),transparent 28%),#030709;
+  background: linear-gradient(180deg,rgba(255,255,255,.08),transparent 28%),#030405;
   border: 1px solid #555d61;
   border-radius: 2px;
   text-shadow: none;
   letter-spacing: .025em;
-  box-shadow: inset 0 2px 5px #000,0 1px 0 white;
+  box-shadow: inset 0 2px 5px #000,0 1px 0 rgba(255,255,255,.16);
   outline: none;
 }
 
 .toggle-row input[type="text"] {
   color: var(--vfd-blue);
-  background: linear-gradient(180deg,rgba(255,255,255,.1),transparent 28%),#030709;
+  background: linear-gradient(180deg,rgba(255,255,255,.08),transparent 28%),#030405;
   border: 1px solid #555d61;
   border-radius: 2px;
   text-shadow: none;
   letter-spacing: .025em;
-  box-shadow: inset 0 2px 5px #000,0 1px 0 white;
+  box-shadow: inset 0 2px 5px #000,0 1px 0 rgba(255,255,255,.16);
   outline: none;
 }
 
@@ -1400,7 +1449,7 @@ select option:hover {
 .toggle-row input[type="text"]:disabled {
   color: var(--vfd-blue);
   border-color: #555d61;
-  box-shadow: inset 0 2px 5px #000,0 1px 0 white;
+  box-shadow: inset 0 2px 5px #000,0 1px 0 rgba(255,255,255,.16);
 }
 
 .toggle-row input[type="text"].invalid-command {
@@ -1423,12 +1472,12 @@ select option:hover {
   border-radius: 2px;
   background: linear-gradient(135deg,white 0%,#c7cbcd 30%,#777d82 50%,#f3f4f4 75%,#8b9094 100%);
   border: 1px solid #4a5054;
-  box-shadow: inset 0 1px white,0 1px 2px #000;
+  box-shadow: inset 0 1px rgba(255,255,255,.22),0 1px 2px #000;
 }
 
 .toggle-track input:checked + .toggle-thumb {
   background: linear-gradient(90deg,#063746,#087e9e);
-  box-shadow: inset 0 1px 4px #000,0 0 7px rgba(24,201,255,.35);
+  box-shadow: inset 0 1px 4px #000,0 0 7px rgba(255,255,255,.35);
 }
 
 .toggle-track input:checked + .toggle-thumb::after {
@@ -1439,8 +1488,8 @@ select option:hover {
 .dialog-section h3,
 .dialog-section-header,
 #danger-zone {
-  color: #282d30;
-  text-shadow: 0 1px white;
+  color: #cbd0d2;
+  text-shadow: 0 1px 0 rgba(255,255,255,.18);
 }
 
 #empty-db-btn,
@@ -1474,27 +1523,185 @@ select option:hover {
 #about-iconset1,
 #about-iconset2 {
   font-family: sans-serif;
-  color: #34383c;
-  text-shadow: 0 1px rgba(255,255,255,.7);
+  color: #c4c8ca;
+  text-shadow: 0 1px 0 rgba(255,255,255,.16);
 }
 
 .about-dialog #about-bluesky2:hover,
 .about-dialog #about-github2:hover,
 .about-dialog #about-iconset2:hover,
 .about-dialog #about-contributors2:hover {
-  color: #34383c;
-  text-shadow: 0 1px rgba(255,255,255,.7);
+  color: #c4c8ca;
+  text-shadow: 0 1px 0 rgba(255,255,255,.16);
   text-decoration: underline;
 }
 
 .about-dialog #about-app-name {
-  color: #202427;
-  text-shadow: 0 1px white;
+  color: #d7dadd;
+  text-shadow: 0 1px 0 rgba(255,255,255,.18);
   letter-spacing: .08em;
 }
 
+
+/* -------------------------------------------------------------------------
+   BLACK / ANTHRACITE HI-FI MATERIAL PASS
+   The original layout and component structure are intentionally untouched.
+   This pass changes the material language: satin black anodized metal rather
+   than polished chrome, with very restrained white illumination.
+   ------------------------------------------------------------------------- */
+
+body {
+  background:
+    radial-gradient(ellipse at 50% -15%, #41464a 0%, #24282b 38%, #111416 100%);
+}
+
+#app {
+  background:
+    repeating-linear-gradient(0deg, rgba(255,255,255,.018) 0, rgba(255,255,255,.018) 1px, rgba(0,0,0,.018) 1px, rgba(0,0,0,.018) 3px),
+    linear-gradient(115deg,#171a1c 0%,#303539 9%,#202427 24%,#363b3f 42%,#1b1e20 62%,#303539 82%,#15181a 100%);
+  border-color: #080a0b;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.12), inset 0 -2px 6px rgba(0,0,0,.8), 0 10px 35px rgba(0,0,0,.8);
+}
+
+#app::before {
+  opacity: .5;
+  background: repeating-linear-gradient(0deg, rgba(255,255,255,.025) 0, rgba(255,255,255,.025) 1px, transparent 1px, transparent 3px);
+  mix-blend-mode: screen;
+}
+
+h2 {
+  color: #d0d3d5;
+  text-shadow: 0 1px 0 #000, 0 -1px 0 rgba(255,255,255,.10);
+}
+
+.divider-v::after, .divider-h::after {
+  background: linear-gradient(90deg,#0b0d0e 0%,#3d4347 20%,#171a1c 50%,#3d4347 80%,#0b0d0e 100%);
+  box-shadow: 0 1px 2px rgba(0,0,0,.9), inset 0 1px rgba(255,255,255,.12);
+}
+
+.divider-v:hover::after, .divider-v.active::after,
+.divider-h:hover::after, .divider-h.active::after {
+  background: linear-gradient(90deg,#8e9498,#ffffff 22%,#dfe2e3 50%,#ffffff 78%,#8e9498);
+  box-shadow: 0 0 6px rgba(255,255,255,.45);
+}
+
+/* Dark anodized-metal controls: satin rather than mirror chrome. */
+:is(#prev-btn,#play-btn,#next-btn,#repeat-btn,#shuffle-btn,#volume-icon,.btn-icon,#groups-buttons button,.btn,.dialog-close,#status-cancel-btn,.search-btn,.folder-item .btn-expand,.delete-dialog-btn,.internet-btn,.playlist-sort-btn) {
+  background: linear-gradient(180deg,#4b5155 0%,#343a3e 28%,#202427 51%,#30363a 76%,#464c50 100%);
+  border-color: #080a0b;
+  color: #dfe2e3;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.17), inset 0 -2px 2px rgba(0,0,0,.75), 0 1px 2px rgba(0,0,0,.85);
+  text-shadow: 0 1px 0 #000;
+}
+
+:is(#prev-btn,#play-btn,#next-btn,#repeat-btn,#shuffle-btn,#volume-icon,.btn-icon,#groups-buttons button,.btn,.dialog-close,#status-cancel-btn,.search-btn,.folder-item .btn-expand,.delete-dialog-btn,.internet-btn,.playlist-sort-btn):hover:not(:disabled) {
+  background: linear-gradient(180deg,#5a6064 0%,#41474b 32%,#272c2f 53%,#3a4044 100%);
+}
+
+:is(#prev-btn,#play-btn,#next-btn,#repeat-btn,#shuffle-btn,#volume-icon,.btn-icon,#groups-buttons button,.btn,.dialog-close,#status-cancel-btn,.search-btn,.folder-item .btn-expand,.delete-dialog-btn,.internet-btn,.playlist-sort-btn):active:not(:disabled) {
+  background: linear-gradient(180deg,#171a1c 0%,#292e31 45%,#111315 100%);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.9), 0 0 1px rgba(255,255,255,.18);
+}
+
+#now-playing {
+  background: linear-gradient(180deg,rgba(255,255,255,.045),transparent 20%,transparent 80%,rgba(255,255,255,.02)), linear-gradient(105deg,#010202 0%,#0b0d0f 45%,#010202 100%);
+  border-color: #090b0c;
+  border-top-color: #565c60;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 0 18px rgba(0,0,0,.98), 0 2px 7px rgba(0,0,0,.9);
+}
+
+#now-playing-title {
+  color: #f8f9f9;
+  text-shadow: 0 0 2px rgba(255,255,255,.9), 0 0 5px rgba(255,255,255,.62), 0 0 12px rgba(255,255,255,.28);
+}
+
+#current-time,#duration,#detail-form input,#detail-form textarea,#search-input,#field-rating,
+#theater-current-time,#theater-duration,
+.toggle-row select,.toggle-row input[type="text"] {
+  color: #f1f2f2;
+}
+
+#detail-form input,#detail-form textarea,#search-input {
+  caret-color: #fff;
+  text-shadow: 0 0 5px rgba(255,255,255,.8),0 0 11px rgba(255,255,255,.35);
+}
+
+#search-input::placeholder { color: #747b7f; }
+
+#now-playing-controls > button,#volume-icon,
+#theater-prev-btn,#theater-play-btn,#theater-next-btn,#theater-volume-icon,#theater-close {
+  background: linear-gradient(180deg,#555b5f 0%,#3c4246 18%,#24282b 46%,#181b1d 51%,#353a3e 78%,#50565a 100%);
+  border-color: #080a0b;
+  color: #e0e3e4;
+  text-shadow: 0 1px 0 #000;
+}
+
+#progress-track,#theater-progress-track {
+  background: linear-gradient(180deg,#000 0%,#15191b 50%,#020303 100%);
+  border-color: #30363a;
+  box-shadow: inset 0 1px 3px #000, 0 1px 0 rgba(255,255,255,.08);
+}
+
+#progress-fill,#theater-progress-fill {
+  background: linear-gradient(180deg,#ffffff 0%,#e0e2e3 40%,#92989c 100%);
+  box-shadow: 0 0 5px rgba(255,255,255,.72),0 0 12px rgba(255,255,255,.25);
+}
+
+#progress-fill::after,#theater-progress-fill::after {
+  background: radial-gradient(circle at 35% 25%,#fff 0%,#d9dcde 28%,#858b8f 58%,#3b4145 100%);
+  border-color: #171a1c;
+  box-shadow: inset 0 1px rgba(255,255,255,.5),0 1px 2px #000,0 0 4px rgba(255,255,255,.42);
+}
+
+#volume-slider::-webkit-slider-runnable-track,#theater-volume-slider::-webkit-slider-runnable-track {
+  background: linear-gradient(180deg,#ffffff 0%,#dfe2e3 40%,#7e8589 100%) left center / var(--slider-fill,0%) 100% no-repeat, linear-gradient(180deg,#000 0%,#15191b 50%,#020303 100%);
+}
+
+#volume-slider::-webkit-slider-thumb,#theater-volume-slider::-webkit-slider-thumb {
+  background: radial-gradient(circle at 35% 25%,#fff 0%,#d9dcde 28%,#858b8f 58%,#3b4145 100%);
+  border-color: #171a1c;
+  box-shadow: inset 0 1px rgba(255,255,255,.5),0 1px 2px #000,0 0 4px rgba(255,255,255,.42);
+}
+
+#play-btn.playing .icon-play svg,#playlist-play-btn.playing .icon-play svg,#theater-play-btn.playing .icon-play svg,
+.playlist-sort-btn.active svg,.sort-badge svg {
+  color: #fff;
+  filter: drop-shadow(0 0 3px #fff) drop-shadow(0 0 8px rgba(255,255,255,.72));
+}
+
+.folder-check:checked,.search-tag input[type="checkbox"]:checked {
+  background: radial-gradient(circle at 35% 28%,#fff 0%,#dfe2e3 16%,#a1a7aa 42%,#51575b 70%,#181b1d 100%);
+  border-color: #07090a;
+  box-shadow: inset 0 1px rgba(255,255,255,.9),inset 0 -2px 2px rgba(0,0,0,.85),0 0 4px rgba(255,255,255,.65),0 0 10px rgba(255,255,255,.25);
+}
+
+#list-table { background: linear-gradient(135deg,rgba(255,255,255,.025),transparent 30%),#252a2d; }
+#list-table th { background: linear-gradient(180deg,#4c5256 0%,#373d41 44%,#202427 52%,#3e4448 100%); border-bottom-color:#080a0b; color:#dfe2e3; text-shadow:0 1px #000; }
+#list-table thead th.sorted { background:linear-gradient(180deg,#e8e9ea 0%,#9da2a5 48%,#555b5f 100%); color:#111315; text-shadow:0 0 5px #fff,0 1px 2px #000; }
+#list-table tbody tr:hover td { background:#3b4145; }
+#list-table tbody tr.selected td,#list-table tbody tr.playing td { background:linear-gradient(180deg,#656b6f 0%,#363c40 100%); color:#fff; text-shadow:0 1px 2px #000; }
+
+#groups-panel li.selected { background:linear-gradient(180deg,#70767a 0%,#3a4044 100%); color:#fff; text-shadow:0 1px 2px #000; }
+
+#playlist-container { background:linear-gradient(135deg,rgba(255,255,255,.045),transparent 25%),#111416; border-color:#3c4246; box-shadow:inset 0 2px 5px #000,inset 0 0 14px rgba(0,0,0,.9),0 1px 0 rgba(255,255,255,.10); }
+.playlist-item { color:#dfe2e3; }
+.playlist-item .playlist-artist-line,.playlist-item .playlist-duration { color:#858b8f; }
+.playlist-item:hover { background:rgba(255,255,255,.06); }
+.playlist-item.selected,.playlist-item.playing { background:linear-gradient(90deg,rgba(255,255,255,.16),rgba(255,255,255,.035)); box-shadow:inset 3px 0 #f2f3f3,inset 0 1px rgba(255,255,255,.08); }
+
+#cover-area { background:linear-gradient(135deg,#555b5f,#30363a 38%,#111416 50%,#444a4e 72%,#202427); border-color:#090b0c; }
+
+#status-bar { background:linear-gradient(180deg,#353a3e,#181b1d); border-top-color:#090b0c; box-shadow:inset 0 1px rgba(255,255,255,.12); }
+
+.dialog,.delete-dialog-box { background:linear-gradient(125deg,#15181a 0%,#3e4448 14%,#252a2d 30%,#42484c 48%,#202427 68%,#363c40 84%,#15181a 100%); border-color:#080a0b; box-shadow:inset 0 1px rgba(255,255,255,.14),inset 0 -2px 5px rgba(0,0,0,.8),0 15px 45px rgba(0,0,0,.9); }
+
+#theater-mode { background:#020303; }
+
+/* Tiny horizontal machining lines — intentionally subtle. */
+#app-logo { filter: none; }
+
 /* ── Theater info text: pinned to base skin────────────────────────────────
-   These four elements always use the exact style from musicpenguin_base.css.
+   These four elements always use the exact style from musicpenguin-base.css.
    IDs are kept so a user can still override them in a custom design.
    ──────────────────────────────────────────────────────────────────────── */
 #theater-title {
@@ -1543,4 +1750,69 @@ select option:hover {
   transition: opacity var(--theater-transition-duration);
   color: #fff;
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+}
+
+/* ── Theater progress thumb: mirror the main now-playing UI slider ────────
+   The theater slider must look identical to the main UI one. The now-playing
+   thumb uses its own dedicated metallic-chrome rule, so this theater rule
+   reproduces that exact look to keep a single slider identity everywhere. */
+#theater-progress-track {
+  height: 8px;
+  border: 1px solid #293033;
+  border-radius: 1px;
+  background: linear-gradient(180deg,#000 0%,#1b2427 50%,#020506 100%);
+  box-shadow: inset 0 1px 3px #000,0 1px 0 rgba(255,255,255,.10);
+}
+
+#theater-progress-fill {
+  background: linear-gradient(180deg,#ffffff 0%,#f1f2f2 38%,#9da2a5 100%);
+  box-shadow: 0 0 5px rgba(255,255,255,.85),0 0 12px rgba(255,255,255,.42);
+}
+
+#theater-progress-fill::after {
+  position: absolute;
+  right: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 12px;
+  height: 12px;
+  background: linear-gradient(135deg,#fff 0%,#d5d9da 32%,#73797c 53%,#f3f5f5 80%,#858b8e 100%);
+  border: 1px solid #42484b;
+  box-shadow: inset 0 1px rgba(255,255,255,.22),0 1px 2px #000,0 0 4px rgba(255,255,255,.65);
+}
+
+/* ── Theater volume slider: mirror the main now-playing volume slider ─────
+   Replicate the exact now-playing slider look so volume reads identically
+   everywhere (the main slider lives under #now-playing-controls). */
+#theater-volume-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 68px;
+  height: 4px;
+  cursor: pointer;
+  outline: none;
+  background: transparent;
+}
+
+#theater-volume-slider::-webkit-slider-runnable-track {
+  height: 8px;
+  border: 1px solid #293033;
+  border-radius: 1px;
+  background: linear-gradient(180deg,#ffffff 0%,#f1f2f2 38%,#9da2a5 100%) left center / var(--slider-fill,0%) 100% no-repeat,linear-gradient(180deg,#000 0%,#1b2427 50%,#020506 100%);
+  box-shadow: inset 0 1px 3px #000,0 1px 0 rgba(255,255,255,.10);
+}
+
+#theater-volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 13px;
+  height: 13px;
+  margin-top: -3px;
+  border-radius: 50%;
+  background: linear-gradient(135deg,#fff 0%,#d5d9da 32%,#73797c 53%,#f3f5f5 80%,#858b8e 100%);
+  border: 1px solid #42484b;
+  box-shadow: inset 0 1px rgba(255,255,255,.22),0 1px 2px #000,0 0 4px rgba(255,255,255,.65);
+}
+
+#theater-volume-slider:focus::-webkit-slider-runnable-track {
+  background: linear-gradient(180deg,#ffffff 0%,#f1f2f2 38%,#9da2a5 100%) left center / var(--slider-fill,0%) 100% no-repeat,linear-gradient(180deg,#000 0%,#1b2427 50%,#020506 100%);
 }

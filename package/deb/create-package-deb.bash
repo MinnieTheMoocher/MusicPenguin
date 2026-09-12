@@ -52,7 +52,7 @@ cp main.js package.json "${APPDIR}/"
 cp -r dist "${APPDIR}/"
 # Example custom designs, seeded into the user's design folder by postinst.
 mkdir -p "${APPDIR}/example-designs"
-cp -r package/custom_designs/* "${APPDIR}/example-designs/"
+cp -r package/designs/* "${APPDIR}/example-designs/"
 
 # Copy complete runtime dependency tree
 cp -a node_modules "${APPDIR}/"

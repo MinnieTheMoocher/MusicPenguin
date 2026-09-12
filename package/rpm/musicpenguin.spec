@@ -38,7 +38,7 @@ cp src/preload/preload.js "${APPDIR}/src/preload/"
 cp main.js package.json "${APPDIR}/"
 cp -r dist "${APPDIR}/"
 # Example custom designs, seeded into the user's design folder by %post.
-cp -a package/custom_designs "${APPDIR}/example-designs"
+cp -a package/designs "${APPDIR}/example-designs"
 cp -a node_modules "${APPDIR}/"
 chmod 4755 "${APPDIR}/node_modules/electron/dist/chrome-sandbox"
 
@@ -62,7 +62,7 @@ install -m 644 package/deb/musicpenguin.desktop "${APPSDIR}/musicpenguin.desktop
 /usr/bin/update-desktop-database /usr/share/applications 2>/dev/null || true
 
 # Seed the user's design folder with the example custom designs shipped by the
-# package (see package/custom_designs). Runs as root (dnf), so the
+# package (see package/designs). Runs as root (dnf), so the
 # installing user is taken from the sudo context, else the first human account.
 ROOT_SRC="/opt/musicpenguin/example-designs"
 if [ -d "$ROOT_SRC" ]; then

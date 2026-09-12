@@ -295,7 +295,7 @@ function createWindow() {
   const initialDesignId = detectInitialDesign(SETTINGS_PATH, designIds);
   const initialDesignHref =
     designHrefMap(availableDesigns).get(initialDesignId) ??
-    path.join("designs", "dark_gray", "musicpenguin_design.css");
+    path.join("designs", "dark_gray", "musicpenguin-design.css");
 
   mainWindow.loadFile(RENDERER_HTML, {
     query: {

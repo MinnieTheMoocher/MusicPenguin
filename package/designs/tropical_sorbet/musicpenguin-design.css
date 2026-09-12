@@ -309,7 +309,7 @@ body {
 #about-app-name { font-size: 1.6rem; }
 
 /* ── Theater info text: pinned to base skin────────────────────────────────
-   These four elements always use the exact style from musicpenguin_base.css.
+   These four elements always use the exact style from musicpenguin-base.css.
    IDs are kept so a user can still override them in a custom design.
    ──────────────────────────────────────────────────────────────────────── */
 #theater-title {

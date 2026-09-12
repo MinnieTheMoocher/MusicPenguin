@@ -26,11 +26,11 @@ npm run watch           # typecheck once, then rebuild renderer bundle on file c
 | src/common/                          | Shared code used by both processes: `config.ts`, `i18n/`, `electron-types.d.ts`
 | src/common/i18n/                     | Localization module (`ITranslate` contract, `en-us`/`de-de`/`fr-fr`/`es-es` dictionaries, `t()` lookup)
 | src/renderer/index.html              | HTML layout, containing no styling at all, just logical structure
-| src/renderer/musicpenguin_base.css   | base stylesheet; every design loads on top of it
-| src/renderer/designs/<id>            | custom designs layered on top of musicpenguin_base.css
+| src/renderer/musicpenguin-base.css   | base stylesheet; every design loads on top of it
+| src/renderer/designs/<id>            | custom designs layered on top of musicpenguin-base.css
 | src/renderer/icons/                  | icon set of this app, currently tabler-icons
 | ~/.config/musicpenguin/designs/<id>/ | custom designs provided by the user, discovered at runtime
-| package/custom_designs/              | example custom designs, copied to `~/.config/musicpenguin/designs/` upon app installation
+| package/designs/              | example custom designs, copied to `~/.config/musicpenguin/designs/` upon app installation
 
 **Key point**: `main.js` and `src/preload/preload.js` are plain CommonJS, never transpiled. `src/` and
 `src/main/` + `src/renderer/` files are TypeScript bundled by esbuild (types stripped). TypeScript
@@ -803,7 +803,7 @@ the cover area — art or placeholder alike — always opens theater mode for th
 
 Detail-form layout (see `index.html`): the left half carries four small metadata fields
 Disc No / Track No / Year / BPM, grouped in a `.detail-row-field-group` flex row, plus a
-separate rating label (`label.field-rating`). Default (`musicpenguin_base.css`) sizing keeps
+separate rating label (`label.field-rating`). Default (`musicpenguin-base.css`) sizing keeps
 all five labels `flex: 1` and reserves `min-width: 100px` for the rating label
 (`label:has(#field-rating)`), guaranteeing the stars always fit. The field-group wrapper is
 purely structural sugar: a skin that wants a wider rating can override just two flex factors
@@ -1284,7 +1284,7 @@ The TypeScript configs (`tsconfig.main.json` and `tsconfig.renderer.json`) enfor
 ## Design Detection
 
 On startup, the available designs are discovered at runtime (`src/main/designs.ts`): every folder containing a
-`musicpenguin_design.css` under `<renderer>/designs` (built-in, href relative to `index.html`) or under
+`musicpenguin-design.css` under `<renderer>/designs` (built-in, href relative to `index.html`) or under
 `~/.config/musicpenguin/designs` (custom, absolute href) counts as a design whose **folder name is its id**. A custom
 design sharing a built-in folder name shadows the built-in. The initial design is picked with this precedence:
 
@@ -1301,19 +1301,19 @@ The chosen design's **stylesheet href** (not the id) is base64-encoded and passe
 `src/renderer/index.html` (base64 makes the href survive the URL query round-trip losslessly — folder names may
 contain spaces, `+`, `%`, `&` …);
 an inline script in the `<head>` decodes and sets `<link id="design-css" href="…">`
-defaulting to `designs/dark_gray/musicpenguin_design.css`, before the page renders to avoid flash. The loader is
+defaulting to `designs/dark_gray/musicpenguin-design.css`, before the page renders to avoid flash. The loader is
 resilient: it only accepts `file:` stylesheets and, if the requested stylesheet fails to load (e.g. index.html is
 opened directly from the file system during development, or a custom design went missing), the link's `onerror`
 swaps it to the built-in dark gray design. `src/renderer/settings.ts` decodes the same way to keep the dropdown's
 default in sync with the active startup design. The renderer then
 re-applies the saved design only if it is still resolvable; otherwise it leaves the main process's choice untouched,
 so an unknown saved design falls back to the usual first-time-default design. All designs are loaded on top of a
-**shared base stylesheet**, `src/renderer/musicpenguin_base.css`, which is linked first in `src/renderer/index.html`
+**shared base stylesheet**, `src/renderer/musicpenguin-base.css`, which is linked first in `src/renderer/index.html`
 (line 7) before the design stylesheet. The base is a copy of the built-in `dark_gray` UI spec, so a design only needs
 to override what it cares about. Built-in and custom designs are minimal **overlays**: each rule the design does not
 restyle falls back to the base, `:root` palettes override the base variables, and any rule whose selector and
 declaration body are byte-identical to a base rule can be dropped from the overlay (the custom design files in
-`package/custom_designs` are kept minimal this way). Switching designs at runtime just swaps the link's
+`package/designs` are kept minimal this way). Switching designs at runtime just swaps the link's
 `href` (see `applyDesign`
 in `src/renderer/settings.ts`). User-initiated switches (settings dropdown) can later be cross-faded over e.g. 0.5s
 via the View Transitions API (`document.startViewTransition`);
@@ -1349,7 +1349,7 @@ offered in the dropdown instead of the built-in (single, non-ambiguous "Custom" 
 and at runtime; the persisted setting stays the bare folder name, never the path.
 
 The install packages do not ship custom designs as part of the app: on installation their post-install scripts
-(`package/deb/postinst`, rpm `%post`) copy the custom designs from `package/custom_designs` into
+(`package/deb/postinst`, rpm `%post`) copy the custom designs from `package/designs` into
 `~/.config/musicpenguin/designs/` of the installing user (resolved via the sudo context or the first human account),
 skipping any folder that already exists. This gives a user a starting point for own designs.
 

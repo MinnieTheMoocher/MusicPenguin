@@ -3,7 +3,7 @@ import * as fs from "fs";
 import * as os from "os";
 import { SETTINGS_DIR } from "./paths";
 
-export const DESIGN_CSS_FILENAME = "musicpenguin_design.css";
+export const DESIGN_CSS_FILENAME = "musicpenguin-design.css";
 
 const HOME_DIR = os.homedir();
 
