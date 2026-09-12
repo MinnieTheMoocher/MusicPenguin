@@ -2,6 +2,10 @@
 
 <img src="doc/musicpenguin256.png" width=150 alt="MusicPenguin icon">
 
+## FUTURE RELEASE
+
+* bugfix:  playcount updates could appear unwanted in hidden columns
+
 ## musicpenguin 0.0.5
 
 * feature: support macOS

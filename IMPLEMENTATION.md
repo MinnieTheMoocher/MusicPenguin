@@ -781,8 +781,17 @@ container width. `thead` and `tbody` set `align-self: flex-start; min-width: 100
 don't stretch to the container — when grid rows overflow the container, the flex items
 grow beyond `#list-table`'s `overflow-x: auto` triggers a horizontal scrollbar. Persisted
 to `musicpenguin-settings.json` as `"400px"` strings. Hidden columns get `--col-NAME: 0px` (set by `setColumnVisibility` and context menu)
-so they don't occupy space. `saveColumnWidths()` saves `""` for hidden columns and is only
-called on mouseup (never on mousemove).
+so they don't occupy space. Row cells for hidden columns additionally need the
+`col-hidden` class (for `overflow: hidden`), which `createRowCells()` mirrors exactly
+like `toggleColumn` does for the header — because rows are built *after*
+`setColumnVisibility` ran (init lists load column visibility before `initVirtualList`).
+This guarantees live cell writes never bleed out of a 0px track into a
+neighbouring column. Live per-cell updates during playback must go through the
+virtual list controller's single `setCellText(path, key, content)` (it resolves the
+cell by column key, never by position, and clears hidden columns instead of feeding
+them text) — the `playcount-updated` handler uses it for the playcount column.
+`saveColumnWidths()` saves `""` for hidden columns and is only called on mouseup
+(never on mousemove).
 
 ### `src/renderer/detail-panel.ts`
 

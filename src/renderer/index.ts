@@ -1467,10 +1467,8 @@ async function init() {
       const sr = searchResults.find((x) => x.path === path);
       if (sr) sr.playcount = playcount;
     }
-    const row = listEl.querySelector(`tr[data-path="${path}"]`);
-    if (row) {
-      const cell = row.querySelector(".col-playcount") as HTMLElement | null;
-      if (cell) cell.textContent = playcount ? String(playcount) : "";
+    if (listCtrl) {
+      listCtrl.setCellText(path, "playcount", playcount ? String(playcount) : "");
     }
     if (selectedGroupId === "grp-most-played") {
       renderTrackList();

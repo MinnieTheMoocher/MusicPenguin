@@ -244,7 +244,7 @@ function updateListPlayingIndicator(): void {
   const tbody = document.getElementById("list");
   if (!tbody) return;
   for (const row of tbody.children as HTMLCollectionOf<HTMLTableRowElement>) {
-    const cell = row.cells[0];
+    const cell = row.querySelector<HTMLElement>(".col-playing");
     if (cell) {
       cell.innerHTML = actuallyPlaying && row.dataset.path === selectedPath ? ICON_SPEAKER : "";
     }

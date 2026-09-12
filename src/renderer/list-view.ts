@@ -543,6 +543,9 @@ function createRowCells(tr: HTMLTableRowElement): HTMLTableCellElement[] {
       td.className += " col-rating";
       setupRatingHover(td, 0);
     }
+    if (hiddenColumns.has(col.key)) {
+      td.classList.add("col-hidden");
+    }
     tr.appendChild(td);
   }
   return Array.from(tr.children) as HTMLTableCellElement[];
@@ -1322,6 +1325,7 @@ export interface VirtualListController {
   getScrollOffset(): number;
   setScrollOffset(offset: number): void;
   refreshRow(path: string): void;
+  setCellText(path: string, key: string, content: string): void;
   setAfterRender(cb: () => void): void;
   setSortState(column: string, direction: "asc" | "desc"): void;
   setSortingMode(id: string | null): void;
@@ -1451,6 +1455,23 @@ export function initVirtualList(
         }
       }
       afterRenderCb?.();
+    },
+
+    /* Update the text of a single cell for a visible track. The single
+       authoritative live-cell writer: it resolves the cell by column key
+       (never by position) and clears hidden columns instead of feeding
+       them content, so values patched during playback can never bleed
+       into a neighbouring visible column. */
+    setCellText(path: string, key: string, content: string): void {
+      const idx = allItems.findIndex((it) => it.trackPath === path);
+      if (idx === -1) return;
+      const vrow = idx - firstIdx;
+      if (vrow < 0 || vrow >= rowEls.length) return;
+      const colIdx = COLUMNS.findIndex((c) => c.key === key);
+      if (colIdx === -1) return;
+      const td = cellEls[vrow]![colIdx];
+      if (!td) return;
+      td.textContent = hiddenColumns.has(key) ? "" : content;
     },
 
     setAfterRender(cb: () => void): void {
