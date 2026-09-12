@@ -103,7 +103,7 @@ in the settings dialog (`playback-bar-position` in musicpenguin-settings.json).
 │  Now Playing                                              │
 │                                                           │
 ├────────┬────────────────────────┬─────────────────────────┤
-│ Groups │  List View (table)     │  Search                 │
+│ Groups │  Main Tracks List Panel│  Search                 │
 │ Panel  │                        ├─────────────────────────┤
 │        ├────────────────────────┤  Playlist               │
 │        │  Details Panel         │                         │
@@ -117,7 +117,7 @@ in the settings dialog (`playback-bar-position` in musicpenguin-settings.json).
 
 ```text
 ┌────────┬────────────────────────┬─────────────────────────┐
-│ Groups │  List View (table)     │  Search                 │
+│ Groups │  Main Tracks List Panel│  Search                 │
 │ Panel  │                        ├─────────────────────────┤
 │        ├────────────────────────┤  Playlist               │
 │        │  Details Panel         │                         │
@@ -727,7 +727,7 @@ triggers only one IPC round-trip.
 Declares `Track`, `ScannedFileInfo`, `TagUpdate`, `ElectronAPI` interface (all IPC methods
 exposed via preload), and `Window` augmentation.
 
-### `src/renderer/groups-view.ts`
+### `src/renderer/groups-panel.ts`
 
 Renders a flat `<ul>` from `TreeNode[]`. Click selects a node; double-click opens it.
 Supports cover art thumbnails (via the shared `ThumbnailCache`, 32×32 px), drag-to-playlist,
@@ -738,7 +738,7 @@ left panel (fixed groups and headings are not removable; the change is persisted
 `group-items` setting). After removal, selection moves
 to the next item in the same section, or the previous one, or falls back to "All Tracks".
 
-### `src/renderer/list-view.ts`
+### `src/renderer/main-tracks-list-panel.ts`
 
 CSS Grid table with resizable columns (drag handles update CSS variables → saved to settings).
 Multi-selection (Ctrl/Shift/Arrow keys), drag-to-playlist, context menu (Show in Folder — reveals

@@ -1,7 +1,7 @@
 import { PlaylistEntry } from "./types.js";
 import { playTrack, loadTrack, selectedPath, isActuallyPlaying, getShuffle, getRepeat, onPlayModeChange, pickRandomExcluding, isPlayableFile, noteExternalPlays } from "./now-playing.js";
 import { getExternalPlayer, getExternalPlayerDisplayName } from "./external-player.js";
-import { formatTime } from "./list-view.js";
+import { formatTime } from "./main-tracks-list-panel.js";
 import { audio } from "./audio.js";
 import { getThumbnail, fetchThumbnail } from "./thumbnail-cache.js";
 import { onPlaybackFailure } from "./playback-error.js";

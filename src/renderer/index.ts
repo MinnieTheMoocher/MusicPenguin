@@ -1,8 +1,8 @@
 import { TreeNode, ListItem } from "./types.js";
 import { audio } from "./audio.js";
 import { injectStaticIcons, ICON_CARET_UP, ICON_CARET_DOWN } from "./icons.js";
-import { renderGroups } from "./groups-view.js";
-import { initVirtualList, VirtualListController, loadColumnWidths, loadColumnVisibility, formatTime, setOnDeletedFiles } from "./list-view.js";
+import { renderGroups } from "./groups-panel.js";
+import { initVirtualList, VirtualListController, loadColumnWidths, loadColumnVisibility, formatTime, setOnDeletedFiles } from "./main-tracks-list-panel.js";
 import { applySortingMode, ARTIST_ALBUM_TRACKNO, TRACKNO, FILENAME } from "./sorting.js";
 import { showDetails } from "./detail-panel.js";
 import { setSelectedTrack, playTrack, loadTrack, initNowPlaying, initPlayableExtensions, refreshListIndicator, onTrackEnd, setNavCallbacks, updateNavButtons, onNavStateChange, selectedPath, setMprisNavState, onSelectedPathChange, getShuffle, getRepeat, pickRandomExcluding, resetShuffleHistory, onPlayModeChange, isPlayableFile, isActuallyPlaying, refreshNowPlayingMetadata } from "./now-playing.js";

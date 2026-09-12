@@ -1,6 +1,6 @@
 import { audio, formatTime } from "./audio.js";
 import { showTheaterMode } from "./theatermode.js";
-import { setupRatingHover } from "./list-view.js";
+import { setupRatingHover } from "./main-tracks-list-panel.js";
 import { updatePlaylistPlayingIndicator } from "./playlist-panel.js";
 import { onPlaybackFailure } from "./playback-error.js";
 import { getExternalPlayer } from "./external-player.js";

@@ -1,4 +1,4 @@
-import { ratingToStarCount } from "./list-view.js";
+import { ratingToStarCount } from "./main-tracks-list-panel.js";
 
 /* Star threshold below which AUTO-advance skips a track. Persisted as
    "min-autoplay-rating" (0.5 steps, 0.5..5); absent = no limit.

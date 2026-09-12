@@ -1359,7 +1359,7 @@ export function initVirtualList(
   const table = container.closest("table") || container.parentElement;
   const panel = container.closest("#list-panel") || table?.closest("#list-panel");
 
-  if (!panel) throw new Error("list-view: #list-panel not found");
+  if (!panel) throw new Error("main-tracks-list-panel: #list-panel not found");
 
   viewport = panel.querySelector<HTMLElement>("#list-viewport");
   if (!viewport) {

@@ -1,5 +1,5 @@
 import { ListItem } from "./types.js";
-import { setupRatingHover, renderRating } from "./list-view.js";
+import { setupRatingHover, renderRating } from "./main-tracks-list-panel.js";
 import { showTheaterMode } from "./theatermode.js";
 import { t } from "../common/i18n/index.js";
 

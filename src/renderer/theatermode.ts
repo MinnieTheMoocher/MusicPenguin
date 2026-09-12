@@ -1,7 +1,7 @@
 /* ── Theater Mode ────────────────────────────────────────── */
 
 import { audio, formatTime } from "./audio.js";
-import { setupRatingHover } from "./list-view.js";
+import { setupRatingHover } from "./main-tracks-list-panel.js";
 import { onPlaybackFailure, setSilentSkipHandler } from "./playback-error.js";
 import { MEDIA_FILE_EXTENSIONS, MIN_EXTRA_IMAGE_SIZE, THEATER_FADE_TOTAL_MS } from "../common/config.js";
 import { ICON_PREV, ICON_NEXT, ICON_PLAY_PAUSE, ICON_SPEAKER, ICON_MUTE, ICON_MUSIC_NOTE } from "./icons.js";
